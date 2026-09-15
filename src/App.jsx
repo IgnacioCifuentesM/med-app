@@ -56,79 +56,402 @@ const btnStyle = (color="#1D9E75") => ({ width:"100%", padding:"12px 0", backgro
 
 // ── LOGIN ─────────────────────────────────────────────────────────────────
 function Login({ onLogin }) {
-  const [mode, setMode]         = useState("login");
-  const [role, setRole]         = useState("patient");
-  const [email, setEmail]       = useState("");
+  const [mode, setMode] = useState("login");
+  const [role, setRole] = useState("patient");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName]         = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
-  const [success, setSuccess]   = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
+  // ── INICIAR SESIÓN ──────────────────────────────────────────────────────
   const doLogin = async () => {
-    if(!email||!password){ setError("Completa email y contraseña"); return; }
-    setLoading(true); setError("");
-    const { data, error:err } = await supabase.auth.signInWithPassword({ email, password });
-    if(err){ setError(err.message); setLoading(false); return; }
-    const { data:prof } = await supabase.from("profiles").select("*").eq("id",data.user.id).maybeSingle();
-    onLogin(data.user, prof || { role:"patient", full_name:email.split("@")[0], onboarding_done:false });
+    if (!email || !password) {
+      setError("Completa email y contraseña");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    const { data, error: err } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (err) {
+      setError(err.message);
+      setLoading(false);
+      return;
+    }
+
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
+    onLogin(
+      data.user,
+      prof || {
+        role: "patient",
+        full_name: email.split("@")[0],
+        onboarding_done: false,
+      }
+    );
+
     setLoading(false);
   };
 
+  // ── REGISTRARSE ─────────────────────────────────────────────────────────
   const doRegister = async () => {
-    if(!email||!password||!name){ setError("Completa todos los campos"); return; }
-    if(password.length < 6){ setError("La contraseña debe tener al menos 6 caracteres"); return; }
-    setLoading(true); setError("");
-    const { data, error:err } = await supabase.auth.signUp({ email, password });
-    if(err){ setError(err.message); setLoading(false); return; }
-    if(data.user){
-      await supabase.from("profiles").upsert({ id:data.user.id, role, full_name:name, email, onboarding_done:false });
+    if (!email || !password || !name) {
+      setError("Completa todos los campos");
+      return;
     }
+
+    if (password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    const { data, error: err } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (err) {
+      setError(err.message);
+      setLoading(false);
+      return;
+    }
+
+    if (data.user) {
+      await supabase.from("profiles").upsert({
+        id: data.user.id,
+        role,
+        full_name: name,
+        email,
+        onboarding_done: false,
+      });
+    }
+
     setSuccess("¡Cuenta creada! Ahora inicia sesión.");
-    setMode("login"); setLoading(false);
+    setMode("login");
+    setLoading(false);
+  };
+
+  // ── RECUPERAR CONTRASEÑA ────────────────────────────────────────────────
+  const doForgotPassword = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!email) {
+      setError("Ingresa tu email para recuperar tu contraseña.");
+      return;
+    }
+
+    setLoading(true);
+
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: "https://med-app-beta-five.vercel.app/?resetPassword=true",
+    });
+
+    if (err) {
+      setError(err.message);
+    } else {
+      setSuccess(
+        "Te enviamos un correo para recuperar tu contraseña 📩"
+      );
+    }
+
+    setLoading(false);
+  };
+
+  // ── ENTER ────────────────────────────────────────────────────────────────
+  const handleEnter = (e) => {
+    if (e.key !== "Enter") return;
+
+    if (mode === "login") {
+      doLogin();
+    } else {
+      doRegister();
+    }
   };
 
   return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#f0f7f4", padding:16 }}>
-      <div style={{ background:"#fff", borderRadius:20, padding:"36px 28px", width:"100%", maxWidth:380, boxShadow:"0 4px 24px rgba(0,0,0,0.08)" }}>
-        <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ fontSize:36, fontWeight:800, color:"#1D9E75" }}>vita<span style={{color:"#222"}}>lia</span></div>
-          <div style={{ fontSize:13, color:"#888", marginTop:6 }}>Medicina de estilo de vida</div>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f0f7f4",
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 20,
+          padding: "36px 28px",
+          width: "100%",
+          maxWidth: 380,
+          boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
+        }}
+      >
+        {/* LOGO */}
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: 32,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 36,
+              fontWeight: 800,
+              color: "#1D9E75",
+            }}
+          >
+            vita<span style={{ color: "#222" }}>lia</span>
+          </div>
+
+          <div
+            style={{
+              fontSize: 13,
+              color: "#888",
+              marginTop: 6,
+            }}
+          >
+            Tu salud, acompañada
+          </div>
         </div>
-        <div style={{ display:"flex", border:"1px solid #eee", borderRadius:10, overflow:"hidden", marginBottom:24 }}>
-          {["login","register"].map(m=>(
-            <button key={m} onClick={()=>{ setMode(m); setError(""); setSuccess(""); }}
-              style={{ flex:1, padding:"11px 0", fontSize:14, border:"none", cursor:"pointer",
-                background:mode===m?"#1D9E75":"transparent", color:mode===m?"#fff":"#888", fontWeight:mode===m?700:400 }}>
-              {m==="login"?"Iniciar sesión":"Registrarse"}
+
+        {/* LOGIN / REGISTRO */}
+        <div
+          style={{
+            display: "flex",
+            border: "1px solid #eee",
+            borderRadius: 10,
+            overflow: "hidden",
+            marginBottom: 24,
+          }}
+        >
+          {["login", "register"].map((m) => (
+            <button
+              key={m}
+              onClick={() => {
+                setMode(m);
+                setError("");
+                setSuccess("");
+              }}
+              style={{
+                flex: 1,
+                padding: "11px 0",
+                fontSize: 14,
+                border: "none",
+                cursor: "pointer",
+                background: mode === m ? "#1D9E75" : "transparent",
+                color: mode === m ? "#fff" : "#888",
+                fontWeight: mode === m ? 700 : 400,
+              }}
+            >
+              {m === "login" ? "Iniciar sesión" : "Registrarse"}
             </button>
           ))}
         </div>
-        {error   && <div style={{ background:"#FAECE7", color:"#4A1B0C", borderRadius:8, padding:"10px 14px", fontSize:13, marginBottom:12 }}>⚠️ {error}</div>}
-        {success && <div style={{ background:"#E1F5EE", color:"#085041", borderRadius:8, padding:"10px 14px", fontSize:13, marginBottom:12 }}>✓ {success}</div>}
-        {mode==="register" && <>
-          <div style={{ fontSize:12, color:"#666", marginBottom:6, fontWeight:500 }}>Nombre completo</div>
-          <input style={inp} placeholder="Tu nombre completo" value={name} onChange={e=>setName(e.target.value)} />
-          <div style={{ fontSize:12, color:"#666", marginBottom:8, fontWeight:500 }}>Soy...</div>
-          <div style={{ display:"flex", gap:8, marginBottom:14 }}>
-            {["patient","doctor"].map(r=>(
-              <button key={r} onClick={()=>setRole(r)}
-                style={{ flex:1, padding:"11px 0", fontSize:13, cursor:"pointer", borderRadius:10,
-                  border:`2px solid ${role===r?"#1D9E75":"#eee"}`,
-                  background:role===r?"#E1F5EE":"transparent",
-                  color:role===r?"#085041":"#888", fontWeight:role===r?700:400 }}>
-                {r==="patient"?"🧑 Paciente":"👨‍⚕️ Doctor"}
-              </button>
-            ))}
+
+        {/* MENSAJES */}
+        {error && (
+          <div
+            style={{
+              background: "#FAECE7",
+              color: "#4A1B0C",
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              marginBottom: 12,
+            }}
+          >
+            ⚠️ {error}
           </div>
-        </>}
-        <div style={{ fontSize:12, color:"#666", marginBottom:6, fontWeight:500 }}>Email</div>
-        <input style={inp} type="email" placeholder="tu@email.com" value={email} onChange={e=>setEmail(e.target.value)} />
-        <div style={{ fontSize:12, color:"#666", marginBottom:6, fontWeight:500 }}>Contraseña</div>
-        <input style={inp} type="password" placeholder="Mínimo 6 caracteres" value={password}
-          onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(mode==="login"?doLogin():doRegister())} />
-        <button onClick={mode==="login"?doLogin:doRegister} disabled={loading} style={btnStyle(loading?"#aaa":"#1D9E75")}>
-          {loading?"Cargando...":(mode==="login"?"Entrar →":"Crear cuenta")}
+        )}
+
+        {success && (
+          <div
+            style={{
+              background: "#E1F5EE",
+              color: "#085041",
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              marginBottom: 12,
+            }}
+          >
+            ✓ {success}
+          </div>
+        )}
+
+        {/* CAMPOS REGISTRO */}
+        {mode === "register" && (
+          <>
+            <div
+              style={{
+                fontSize: 12,
+                color: "#666",
+                marginBottom: 6,
+                fontWeight: 500,
+              }}
+            >
+              Nombre completo
+            </div>
+
+            <input
+              style={inp}
+              placeholder="Tu nombre completo"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+
+            <div
+              style={{
+                fontSize: 12,
+                color: "#666",
+                marginBottom: 8,
+                fontWeight: 500,
+              }}
+            >
+              Soy...
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginBottom: 14,
+              }}
+            >
+              {["patient", "doctor"].map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRole(r)}
+                  style={{
+                    flex: 1,
+                    padding: "11px 0",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    borderRadius: 10,
+                    border: `2px solid ${
+                      role === r ? "#1D9E75" : "#eee"
+                    }`,
+                    background:
+                      role === r ? "#E1F5EE" : "transparent",
+                    color:
+                      role === r ? "#085041" : "#888",
+                    fontWeight: role === r ? 700 : 400,
+                  }}
+                >
+                  {r === "patient"
+                    ? "🧑 Paciente"
+                    : "👨‍⚕️ Doctor"}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* EMAIL */}
+        <div
+          style={{
+            fontSize: 12,
+            color: "#666",
+            marginBottom: 6,
+            fontWeight: 500,
+          }}
+        >
+          Email
+        </div>
+
+        <input
+          style={inp}
+          type="email"
+          placeholder="tu@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={handleEnter}
+        />
+
+        {/* CONTRASEÑA */}
+        <div
+          style={{
+            fontSize: 12,
+            color: "#666",
+            marginBottom: 6,
+            fontWeight: 500,
+          }}
+        >
+          Contraseña
+        </div>
+
+        <input
+          style={{
+            ...inp,
+            marginBottom: mode === "login" ? 8 : 14,
+          }}
+          type="password"
+          placeholder="Mínimo 6 caracteres"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={handleEnter}
+        />
+
+        {/* OLVIDÉ CONTRASEÑA */}
+        {mode === "login" && (
+          <button
+            type="button"
+            onClick={doForgotPassword}
+            disabled={loading}
+            style={{
+              display: "block",
+              marginLeft: "auto",
+              marginBottom: 14,
+              padding: 0,
+              border: "none",
+              background: "transparent",
+              color: "#1D9E75",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: loading ? "default" : "pointer",
+            }}
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        )}
+
+        {/* BOTÓN PRINCIPAL */}
+        <button
+          onClick={
+            mode === "login"
+              ? doLogin
+              : doRegister
+          }
+          disabled={loading}
+          style={btnStyle(
+            loading ? "#aaa" : "#1D9E75"
+          )}
+        >
+          {loading
+            ? "Cargando..."
+            : mode === "login"
+            ? "Entrar"
+            : "Crear cuenta"}
         </button>
       </div>
     </div>
@@ -590,232 +913,788 @@ function PillarModal({ pillar, onClose, onSave }) {
 // ── PATIENT SCREENS ───────────────────────────────────────────────────────
 function Home({ user, profile }) {
   const [records, setRecords] = useState([]);
-  const [metas, setMetas] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [completions, setCompletions] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
 
-  const PILLAR_ICONS = {
-    nutricion: "🥗",
-    actividad: "🏃",
-    sueno: "🌙",
-    sustancias: "🚭",
-    estres: "🧘",
-    conexion: "❤️",
+  const TASK_TYPES = {
+    medication: {
+      label: "Medicamento",
+      icon: "💊",
+      color: "#534AB7",
+      light: "#EEEDFE",
+    },
+    exercise: {
+      label: "Ejercicio",
+      icon: "🏃",
+      color: "#378ADD",
+      light: "#E6F1FB",
+    },
+    measurement: {
+      label: "Medición",
+      icon: "🩺",
+      color: "#D85A30",
+      light: "#FAECE7",
+    },
+    appointment: {
+      label: "Control",
+      icon: "📅",
+      color: "#BA7517",
+      light: "#FAEEDA",
+    },
+    nutrition: {
+      label: "Nutrición",
+      icon: "🥗",
+      color: "#1D9E75",
+      light: "#E1F5EE",
+    },
+    general: {
+      label: "Tarea",
+      icon: "📌",
+      color: "#666",
+      light: "#f0f0f0",
+    },
   };
 
-  const mapPillarToColor = (pillar) => {
-    return COLORS[pillar] || COLORS.actividad;
+  // =========================================================
+  // FECHA LOCAL
+  // =========================================================
+
+  const getLocalDateString = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
   };
 
-  const getStreak = (records) => {
-    const dates = [...new Set(records.map(r => r.date))].sort().reverse();
-    let streak = 0;
-    let current = new Date();
+  const today = getLocalDateString();
 
-    for (let d of dates) {
-      const date = new Date(d);
-      const diff = Math.floor((current - date) / (1000 * 60 * 60 * 24));
-      if (diff === streak) streak++;
-      else break;
+  // =========================================================
+  // ¿CORRESPONDE HACER ESTA TAREA HOY?
+  // =========================================================
+
+  const isTaskDueToday = (task) => {
+    if (!task.active) return false;
+
+    if (task.start_date && today < task.start_date) {
+      return false;
     }
-    return streak;
+
+    if (task.end_date && today > task.end_date) {
+      return false;
+    }
+
+    const jsDay = new Date().getDay();
+    const dbDay = jsDay === 0 ? 7 : jsDay;
+
+    // Nuestra BD:
+    // 1 lunes
+    // 2 martes
+    // ...
+    // 6 sábado
+    // 7 domingo
+
+    if (task.frequency === "daily") {
+      return true;
+    }
+
+    if (task.frequency === "weekdays") {
+      return jsDay >= 1 && jsDay <= 5;
+    }
+
+    if (task.frequency === "weekly") {
+      return (task.days_of_week || []).includes(dbDay);
+    }
+
+    if (task.frequency === "once") {
+      return task.start_date === today;
+    }
+
+    return false;
   };
+
+  // =========================================================
+  // CARGAR DATOS
+  // =========================================================
 
   useEffect(() => {
     const load = async () => {
-      const today = new Date().toISOString().split("T")[0];
+      setLoadingTasks(true);
 
-      const now = new Date();
-      const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-      const startStr = startOfWeek.toISOString().split("T")[0];
+      // ── Pilares últimos 7 días ────────────────────────────
 
-      // metas
-      const { data: goals } = await supabase
-        .from("goals")
-        .select("*")
-        .eq("patient_id", user.id)
-        .gte("week_start", startStr);
+      const lastWeek = getLocalDateString(
+        new Date(Date.now() - 7 * 86400000)
+      );
 
-      let metasBase = (goals || []).map(g => ({
-        id: g.id,
-        key: g.id,
-        text: g.description,
-        pillar: g.pillar,
-        done: false,
-      }));
-
-      const { data: todayData } = await supabase
-        .from("pillar_records")
-        .select("data")
-        .eq("user_id", user.id)
-        .eq("date", today)
-        .eq("pillar", "metas")
-        .maybeSingle();
-
-      if (todayData?.data) {
-        metasBase = metasBase.map(m => ({
-          ...m,
-          done: todayData.data[m.key] || false
-        }));
-      }
-
-      setMetas(metasBase);
-
-      // pilares
-      const { data: rec } = await supabase
+      const { data: rec, error: recError } = await supabase
         .from("pillar_records")
         .select("score,pillar,date")
         .eq("user_id", user.id)
-        .gte("date", new Date(Date.now() - 7*86400000).toISOString().split("T")[0])
+        .gte("date", lastWeek)
         .neq("pillar", "metas");
 
+      if (recError) {
+        console.error("Error cargando pilares:", recError);
+      }
+
       setRecords(rec || []);
+
+      // ── Tareas del paciente ───────────────────────────────
+
+      const { data: taskData, error: taskError } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("patient_id", user.id)
+        .eq("active", true)
+        .lte("start_date", today)
+        .or(`end_date.is.null,end_date.gte.${today}`)
+        .order("task_time", {
+          ascending: true,
+          nullsFirst: false,
+        });
+
+      if (taskError) {
+        console.error("Error cargando tareas:", taskError);
+        setTasks([]);
+      } else {
+        setTasks(taskData || []);
+      }
+
+      // ── Cumplimientos de hoy ──────────────────────────────
+
+      const { data: completionData, error: completionError } =
+        await supabase
+          .from("task_completions")
+          .select("*")
+          .eq("patient_id", user.id)
+          .eq("completion_date", today);
+
+      if (completionError) {
+        console.error(
+          "Error cargando cumplimientos:",
+          completionError
+        );
+        setCompletions([]);
+      } else {
+        setCompletions(completionData || []);
+      }
+
+      setLoadingTasks(false);
     };
 
     load();
   }, [user.id]);
 
-  const toggleMeta = async (i) => {
-    const n = [...metas];
-    n[i] = { ...n[i], done: !n[i].done };
-    setMetas(n);
+  // =========================================================
+  // TAREAS DE HOY
+  // =========================================================
 
-    const today = new Date().toISOString().split("T")[0];
+  const todayTasks = tasks.filter(isTaskDueToday);
 
-    const metaData = {};
-    n.forEach(m => { metaData[m.key] = m.done; });
-
-    const completed = n.filter(m => m.done).length;
-    const allDone = completed === n.length;
-
-    await supabase.from("pillar_records").upsert(
-      {
-        user_id: user.id,
-        date: today,
-        pillar: "metas",
-        data: metaData,
-        score: allDone ? 100 : 0
-      },
-      { onConflict: "user_id,date,pillar" }
+  const isCompleted = (taskId) => {
+    return completions.some(
+      (c) => c.task_id === taskId && c.completed
     );
   };
 
-  // SCORE
-  const pillarScore = records.length
-    ? Math.round(records.reduce((a,r)=>a+(r.score||0),0)/records.length)
+  // =========================================================
+  // MARCAR / DESMARCAR
+  // =========================================================
+
+  const toggleTask = async (task) => {
+    const existing = completions.find(
+      (c) => c.task_id === task.id
+    );
+
+    const currentlyCompleted =
+      existing?.completed === true;
+
+    // ── Si ya existe el registro ────────────────────────────
+
+    if (existing) {
+      const newCompleted = !currentlyCompleted;
+
+      // UI inmediata
+      setCompletions((current) =>
+        current.map((c) =>
+          c.id === existing.id
+            ? {
+                ...c,
+                completed: newCompleted,
+                completed_at: newCompleted
+                  ? new Date().toISOString()
+                  : null,
+              }
+            : c
+        )
+      );
+
+      const { error } = await supabase
+        .from("task_completions")
+        .update({
+          completed: newCompleted,
+          completed_at: newCompleted
+            ? new Date().toISOString()
+            : null,
+        })
+        .eq("id", existing.id);
+
+      if (error) {
+        console.error(
+          "Error actualizando cumplimiento:",
+          error
+        );
+
+        // revertir UI
+        setCompletions((current) =>
+          current.map((c) =>
+            c.id === existing.id
+              ? {
+                  ...c,
+                  completed: currentlyCompleted,
+                  completed_at:
+                    existing.completed_at,
+                }
+              : c
+          )
+        );
+      }
+
+      return;
+    }
+
+    // ── Si todavía no existe ────────────────────────────────
+
+    const tempId = `temp-${task.id}`;
+
+    const tempCompletion = {
+      id: tempId,
+      task_id: task.id,
+      patient_id: user.id,
+      completion_date: today,
+      completed: true,
+      completed_at: new Date().toISOString(),
+    };
+
+    // UI inmediata
+    setCompletions((current) => [
+      ...current,
+      tempCompletion,
+    ]);
+
+    const { data, error } = await supabase
+      .from("task_completions")
+      .insert({
+        task_id: task.id,
+        patient_id: user.id,
+        completion_date: today,
+        completed: true,
+        completed_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error(
+        "Error creando cumplimiento:",
+        error
+      );
+
+      setCompletions((current) =>
+        current.filter((c) => c.id !== tempId)
+      );
+
+      return;
+    }
+
+    // cambiar temporal por fila real
+    setCompletions((current) =>
+      current.map((c) =>
+        c.id === tempId ? data : c
+      )
+    );
+  };
+
+  // =========================================================
+  // MÉTRICAS DEL DÍA
+  // =========================================================
+
+  const completedToday = todayTasks.filter((task) =>
+    isCompleted(task.id)
+  ).length;
+
+  const adherenceToday = todayTasks.length
+    ? Math.round(
+        (completedToday / todayTasks.length) * 100
+      )
     : 0;
 
-  const metasCompleted = metas.filter(m => m.done).length;
-  const metasRatio = metas.length ? metasCompleted / metas.length : 0;
-  const metasBonus = metasRatio === 1 ? 10 : Math.round(metasRatio * 10);
+  // Score de hábitos, separado de adherencia
+  const pillarScore = records.length
+    ? Math.round(
+        records.reduce(
+          (sum, r) => sum + (r.score || 0),
+          0
+        ) / records.length
+      )
+    : null;
 
-  const finalScore = Math.min(100, Math.round(pillarScore * 0.9) + metasBonus);
+  // =========================================================
+  // STREAK DE CUMPLIMIENTO
+  // =========================================================
 
-  const nombre = profile?.full_name?.split(" ")[0] || "ahí";
-  const streak = getStreak(records);
+  const nombre =
+    profile?.full_name?.split(" ")[0] || "ahí";
+
+  // =========================================================
+  // FORMATO FRECUENCIA
+  // =========================================================
+
+  const frequencyText = (task) => {
+    if (task.frequency === "daily") {
+      return "Todos los días";
+    }
+
+    if (task.frequency === "weekdays") {
+      return "Lunes a viernes";
+    }
+
+    if (task.frequency === "once") {
+      return "Solo hoy";
+    }
+
+    if (task.frequency === "weekly") {
+      const names = {
+        1: "Lun",
+        2: "Mar",
+        3: "Mié",
+        4: "Jue",
+        5: "Vie",
+        6: "Sáb",
+        7: "Dom",
+      };
+
+      return (task.days_of_week || [])
+        .map((day) => names[day])
+        .join(" · ");
+    }
+
+    return "";
+  };
+
+  // =========================================================
+  // RENDER
+  // =========================================================
 
   return (
-    <div style={{ padding:16 }}>
-      <p style={{ fontSize:22, fontWeight:700 }}>Hola, {nombre} 👋</p>
+    <div style={{ padding: 16 }}>
 
-      {/* SCORE */}
-      <div style={{
-        background:"#1D9E75",
-        borderRadius:20,
-        padding:20,
-        color:"#fff",
-        textAlign:"center",
-        marginBottom:20
-      }}>
-        <div style={{ fontSize:12 }}>Score</div>
-        <div style={{ fontSize:60, fontWeight:800 }}>{finalScore || "—"}</div>
+      {/* SALUDO */}
+
+      <div style={{ marginBottom: 22 }}>
+        <p
+          style={{
+            fontSize: 22,
+            fontWeight: 800,
+            marginBottom: 4,
+          }}
+        >
+          Hola, {nombre} 👋
+        </p>
+
+        <p
+          style={{
+            fontSize: 13,
+            color: "#888",
+            margin: 0,
+          }}
+        >
+          Este es tu plan para hoy.
+        </p>
       </div>
 
-      {/* STREAK */}
-      <div style={{ marginBottom:20 }}>
-        🔥 {streak} días seguidos
-      </div>
+      {/* ================================================= */}
+      {/* TU DÍA */}
+      {/* ================================================= */}
 
-      {/* METAS HEADER */}
-      <div style={{ marginBottom:10 }}>
-        <p style={{ fontWeight:700 }}>Metas de hoy</p>
-        <div style={{
-          height:6,
-          background:"#eee",
-          borderRadius:4,
-          overflow:"hidden"
-        }}>
-          <div style={{
-            width:`${metasRatio * 100}%`,
-            background:"#1D9E75",
-            height:"100%"
-          }} />
-        </div>
-      </div>
-
-      {/* METAS */}
-      {metas.map((m,i)=>{
-        const color = mapPillarToColor(m.pillar);
-        const icon = PILLAR_ICONS[m.pillar] || "🎯";
-
-        return (
-          <div
-            key={m.id}
-            onClick={()=>toggleMeta(i)}
-            style={{
-              display:"flex",
-              alignItems:"center",
-              gap:12,
-              padding:14,
-              borderRadius:14,
-              marginBottom:10,
-              cursor:"pointer",
-              background: m.done ? color.light : "#fff",
-              border:`2px solid ${color.main}`
-            }}
-          >
-            {/* ICON */}
-            <div style={{
-              fontSize:22,
-              width:34,
-              height:34,
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"center",
-              borderRadius:10,
-              background: color.light
-            }}>
-              {icon}
+      <div
+        style={{
+          background: "#1D9E75",
+          borderRadius: 20,
+          padding: 20,
+          color: "#fff",
+          marginBottom: 20,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            marginBottom: 12,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 13,
+                opacity: 0.8,
+                marginBottom: 3,
+              }}
+            >
+              Tu día
             </div>
 
-            {/* TEXT */}
-            <div style={{ flex:1 }}>
-              <div style={{
-                fontSize:14,
-                fontWeight:600,
-                textDecoration: m.done ? "line-through" : "none",
-                color: m.done ? "#999" : "#222"
-              }}>
-                {m.text}
-              </div>
-            </div>
-
-            {/* CHECK */}
-            <div style={{
-              width:22,
-              height:22,
-              borderRadius:"50%",
-              border:`2px solid ${color.main}`,
-              background: m.done ? color.main : "transparent",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"center",
-              color:"#fff",
-              fontSize:12
-            }}>
-              {m.done ? "✓" : ""}
+            <div
+              style={{
+                fontSize: 28,
+                fontWeight: 800,
+              }}
+            >
+              {loadingTasks
+                ? "..."
+                : todayTasks.length === 0
+                ? "Sin tareas"
+                : `${completedToday} de ${todayTasks.length}`}
             </div>
           </div>
-        );
-      })}
+
+          {todayTasks.length > 0 && (
+            <div
+              style={{
+                fontSize: 26,
+                fontWeight: 800,
+              }}
+            >
+              {adherenceToday}%
+            </div>
+          )}
+        </div>
+
+        {todayTasks.length > 0 && (
+          <div
+            style={{
+              height: 8,
+              background: "rgba(255,255,255,0.25)",
+              borderRadius: 20,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${adherenceToday}%`,
+                height: "100%",
+                background: "#fff",
+                borderRadius: 20,
+                transition: "width 0.25s ease",
+              }}
+            />
+          </div>
+        )}
+
+        {todayTasks.length > 0 && (
+          <div
+            style={{
+              fontSize: 11,
+              opacity: 0.8,
+              marginTop: 9,
+            }}
+          >
+            {completedToday === todayTasks.length
+              ? "✓ Plan de hoy completado"
+              : `${todayTasks.length - completedToday} ${
+                  todayTasks.length - completedToday === 1
+                    ? "tarea pendiente"
+                    : "tareas pendientes"
+                }`}
+          </div>
+        )}
+      </div>
+
+      {/* ================================================= */}
+      {/* TAREAS */}
+      {/* ================================================= */}
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 10,
+        }}
+      >
+        <p
+          style={{
+            fontSize: 16,
+            fontWeight: 700,
+            margin: 0,
+          }}
+        >
+          Hoy
+        </p>
+
+        {todayTasks.length > 0 && (
+          <span
+            style={{
+              fontSize: 12,
+              color: "#888",
+            }}
+          >
+            {completedToday}/{todayTasks.length}
+          </span>
+        )}
+      </div>
+
+      {loadingTasks ? (
+        <div
+          style={{
+            padding: 24,
+            textAlign: "center",
+            color: "#888",
+            background: "#f7f7f7",
+            borderRadius: 14,
+            marginBottom: 22,
+          }}
+        >
+          Cargando tu plan...
+        </div>
+      ) : todayTasks.length === 0 ? (
+        <div
+          style={{
+            padding: 24,
+            textAlign: "center",
+            background: "#f7f7f7",
+            borderRadius: 14,
+            marginBottom: 22,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 28,
+              marginBottom: 8,
+            }}
+          >
+            🌿
+          </div>
+
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            No tienes tareas para hoy
+          </div>
+
+          <div
+            style={{
+              fontSize: 12,
+              color: "#888",
+              marginTop: 4,
+            }}
+          >
+            Tu equipo médico puede agregarlas a tu plan.
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          {todayTasks.map((task) => {
+            const done = isCompleted(task.id);
+
+            const type =
+              TASK_TYPES[task.task_type] ||
+              TASK_TYPES.general;
+
+            return (
+              <div
+                key={task.id}
+                onClick={() => toggleTask(task)}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  padding: 14,
+                  borderRadius: 14,
+                  marginBottom: 9,
+                  cursor: "pointer",
+                  background: done
+                    ? type.light
+                    : "#fff",
+                  border: `1.5px solid ${
+                    done
+                      ? type.color
+                      : "#e8e8e8"
+                  }`,
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {/* ICONO */}
+
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 11,
+                    background: type.light,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                    flexShrink: 0,
+                  }}
+                >
+                  {type.icon}
+                </div>
+
+                {/* INFORMACIÓN */}
+
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: done
+                        ? "#777"
+                        : "#222",
+                      textDecoration: done
+                        ? "line-through"
+                        : "none",
+                    }}
+                  >
+                    {task.title}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#888",
+                      marginTop: 4,
+                    }}
+                  >
+                    {task.task_time && (
+                      <>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color: type.color,
+                          }}
+                        >
+                          {task.task_time.slice(0, 5)}
+                        </span>
+
+                        {" · "}
+                      </>
+                    )}
+
+                    {frequencyText(task)}
+                  </div>
+
+                  {task.instructions && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#666",
+                        marginTop: 7,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {task.instructions}
+                    </div>
+                  )}
+                </div>
+
+                {/* CHECK */}
+
+                <div
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    border: `2px solid ${
+                      done
+                        ? type.color
+                        : "#ccc"
+                    }`,
+                    background: done
+                      ? type.color
+                      : "transparent",
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    marginTop: 7,
+                  }}
+                >
+                  {done ? "✓" : ""}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ================================================= */}
+      {/* HÁBITOS */}
+      {/* ================================================= */}
+
+      <div
+        style={{
+          borderTop: "1px solid #eee",
+          paddingTop: 18,
+          marginTop: 4,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+              }}
+            >
+              🌱 Hábitos
+            </div>
+
+            <div
+              style={{
+                fontSize: 12,
+                color: "#888",
+                marginTop: 3,
+              }}
+            >
+              Tu seguimiento de estilo de vida
+            </div>
+          </div>
+
+          <div
+            style={{
+              width: 54,
+              height: 54,
+              borderRadius: "50%",
+              background: "#E1F5EE",
+              color: "#085041",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 18,
+              fontWeight: 800,
+            }}
+          >
+            {pillarScore ?? "—"}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1404,178 +2283,1405 @@ function DocDashboard({ doctorId }) {
 function DocPatients({ doctorId }) {
   const [patients, setPatients] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [recs, setRecs]         = useState([]);
-  const [goals, setGoals]       = useState([]);
-  const [newGoal, setNewGoal]   = useState({ description:"", pillar:"nutricion" });
-  const [addingGoal, setAddingGoal] = useState(false);
+  const [recs, setRecs] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [taskCompletions, setTaskCompletions] = useState([]);
+  const [addingTask, setAddingTask] = useState(false);
+  const [taskError, setTaskError] = useState("");
+  const today = new Date().toISOString().split("T")[0];
 
-  useEffect(()=>{
-  const loadPatients = async () => {
-    // 1. obtener relaciones
-    const { data: relations } = await supabase
-      .from("doctor_patients")
-      .select("patient_id")
-      .eq("doctor_id", doctorId);
+  const emptyTask = {
+    task_type: "medication",
+    title: "",
+    description: "",
+    frequency: "daily",
+    days_of_week: [],
+    task_time: "",
+    start_date: today,
+    end_date: "",
+    instructions: "",
+  };
 
-    const ids = (relations || []).map(r => r.patient_id);
+  const [newTask, setNewTask] = useState(emptyTask);
 
-    if (ids.length === 0) {
-      setPatients([]);
+  const TASK_TYPES = {
+    medication: { label: "Medicamento", icon: "💊" },
+    exercise: { label: "Ejercicio", icon: "🏃" },
+    measurement: { label: "Medición", icon: "🩺" },
+    appointment: { label: "Control / cita", icon: "📅" },
+    nutrition: { label: "Nutrición", icon: "🥗" },
+    general: { label: "Otra tarea", icon: "📌" },
+  };
+
+  const FREQUENCIES = {
+    daily: "Todos los días",
+    weekdays: "Lunes a viernes",
+    weekly: "Días específicos",
+    once: "Una vez",
+  };
+
+  const WEEK_DAYS = [
+    { value: 1, label: "L" },
+    { value: 2, label: "M" },
+    { value: 3, label: "X" },
+    { value: 4, label: "J" },
+    { value: 5, label: "V" },
+    { value: 6, label: "S" },
+    { value: 7, label: "D" },
+  ];
+
+  // ── CARGAR PACIENTES ────────────────────────────────────────────────────
+  useEffect(() => {
+    const loadPatients = async () => {
+      const { data: relations, error: relationError } = await supabase
+        .from("doctor_patients")
+        .select("patient_id")
+        .eq("doctor_id", doctorId);
+
+      if (relationError) {
+        console.error("Error cargando relaciones:", relationError);
+        return;
+      }
+
+      const ids = (relations || []).map((r) => r.patient_id);
+
+      if (ids.length === 0) {
+        setPatients([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", ids);
+
+      if (error) {
+        console.error("Error cargando pacientes:", error);
+        return;
+      }
+
+      setPatients(data || []);
+    };
+
+    loadPatients();
+  }, [doctorId]);
+
+  // ── ABRIR PACIENTE ──────────────────────────────────────────────────────
+  const open = async (pt) => {
+    setSelected(pt);
+    setTaskError("");
+
+    const formatLocalDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setHours(12, 0, 0, 0);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+    const startDate = formatLocalDate(sevenDaysAgo);
+
+    const [
+      { data: r, error: recError },
+      { data: t, error: taskLoadError },
+      { data: c, error: completionError },
+    ] = await Promise.all([
+      supabase
+        .from("pillar_records")
+        .select("*")
+        .eq("user_id", pt.id)
+        .order("date", { ascending: false })
+        .limit(60),
+
+      supabase
+        .from("tasks")
+        .select("*")
+        .eq("patient_id", pt.id)
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("task_completions")
+        .select("*")
+        .eq("patient_id", pt.id)
+        .gte("completion_date", startDate),
+    ]);
+
+    if (recError) {
+      console.error("Error cargando registros:", recError);
+    }
+
+    if (taskLoadError) {
+      console.error("Error cargando tareas:", taskLoadError);
+      setTaskError("No se pudieron cargar las tareas.");
+    }
+
+    if (completionError) {
+      console.error("Error cargando cumplimientos:", completionError);
+    }
+
+    setRecs(r || []);
+    setTasks(t || []);
+    setTaskCompletions(c || []);
+
+    setNewTask({
+      ...emptyTask,
+      start_date: formatLocalDate(new Date()),
+    });
+  };
+
+  // ── CREAR TAREA ─────────────────────────────────────────────────────────
+  const addTask = async () => {
+    setTaskError("");
+
+    if (!selected) return;
+
+    if (!newTask.title.trim()) {
+      setTaskError("Escribe un título para la tarea.");
       return;
     }
 
-    // 2. traer solo esos pacientes
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .in("id", ids);
+    if (
+      newTask.frequency === "weekly" &&
+      newTask.days_of_week.length === 0
+    ) {
+      setTaskError("Selecciona al menos un día de la semana.");
+      return;
+    }
 
-    setPatients(data || []);
+    if (
+      newTask.end_date &&
+      newTask.start_date &&
+      newTask.end_date < newTask.start_date
+    ) {
+      setTaskError(
+        "La fecha de término no puede ser anterior a la fecha de inicio."
+      );
+      return;
+    }
+
+    setAddingTask(true);
+
+    const payload = {
+      patient_id: selected.id,
+      doctor_id: doctorId,
+      title: newTask.title.trim(),
+      description: newTask.description.trim() || null,
+      task_type: newTask.task_type,
+      frequency: newTask.frequency,
+
+      days_of_week:
+        newTask.frequency === "weekly"
+          ? newTask.days_of_week
+          : null,
+
+      task_time: newTask.task_time || null,
+      start_date: newTask.start_date,
+      end_date: newTask.end_date || null,
+      instructions: newTask.instructions.trim() || null,
+      active: true,
+    };
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creando tarea:", error);
+      setTaskError(`No se pudo crear la tarea: ${error.message}`);
+      setAddingTask(false);
+      return;
+    }
+
+    setTasks((current) => [data, ...current]);
+
+    setNewTask({
+      ...emptyTask,
+      start_date: new Date().toISOString().split("T")[0],
+    });
+
+    setAddingTask(false);
   };
 
-  loadPatients();
-}, [doctorId]);
+  // ── ACTIVAR / PAUSAR ────────────────────────────────────────────────────
+  const toggleTaskActive = async (task) => {
+    const newActive = !task.active;
 
-  const open = async (pt) => {
-    setSelected(pt);
-    const [{data:r},{data:g}] = await Promise.all([
-      supabase.from("pillar_records").select("*").eq("user_id",pt.id).order("date",{ascending:false}).limit(60),
-      supabase.from("goals").select("*").eq("patient_id",pt.id).order("created_at",{ascending:false}),
-    ]);
-    setRecs(r||[]); setGoals(g||[]);
+    const { error } = await supabase
+      .from("tasks")
+      .update({ active: newActive })
+      .eq("id", task.id);
+
+    if (error) {
+      console.error("Error actualizando tarea:", error);
+      setTaskError("No se pudo actualizar la tarea.");
+      return;
+    }
+
+    setTasks((current) =>
+      current.map((t) =>
+        t.id === task.id ? { ...t, active: newActive } : t
+      )
+    );
   };
 
-  const addGoal = async () => {
-    if(!newGoal.description.trim()) return;
-    setAddingGoal(true);
-    const {data,error} = await supabase.from("goals").insert({
-      patient_id: selected.id, doctor_id: doctorId,
-      pillar: newGoal.pillar, description: newGoal.description, done:false,
-    }).select().single();
-    if(!error){ setGoals(g=>[data,...g]); setNewGoal({description:"",pillar:"nutricion"}); }
-    setAddingGoal(false);
+  // ── ELIMINAR TAREA ──────────────────────────────────────────────────────
+  const deleteTask = async (id) => {
+    const ok = window.confirm(
+      "¿Seguro que quieres eliminar esta tarea?"
+    );
+
+    if (!ok) return;
+
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error eliminando tarea:", error);
+      setTaskError("No se pudo eliminar la tarea.");
+      return;
+    }
+
+    setTasks((current) => current.filter((t) => t.id !== id));
   };
 
-  const deleteGoal = async (id) => {
-    await supabase.from("goals").delete().eq("id",id);
-    setGoals(g=>g.filter(x=>x.id!==id));
+  // ── DÍAS SEMANA ─────────────────────────────────────────────────────────
+  const toggleWeekDay = (day) => {
+    setNewTask((current) => {
+      const exists = current.days_of_week.includes(day);
+
+      return {
+        ...current,
+        days_of_week: exists
+          ? current.days_of_week.filter((d) => d !== day)
+          : [...current.days_of_week, day],
+      };
+    });
   };
 
-  if(selected){
-    const avg  = recs.length ? Math.round(recs.reduce((a,r)=>a+(r.score||0),0)/recs.length) : 0;
-    const avgs = PILLARS.map(p=>{ const pr=recs.filter(r=>r.pillar===p.key); return pr.length?Math.round(pr.reduce((a,r)=>a+(r.score||0),0)/pr.length):0; });
-    const ini  = (selected.full_name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-    const imc  = selected.weight&&selected.height ? (Number(selected.weight)/Math.pow(Number(selected.height)/100,2)).toFixed(1) : "—";
+  // ── TEXTO FRECUENCIA ────────────────────────────────────────────────────
+  const getFrequencyText = (task) => {
+    if (task.frequency === "daily") {
+      return "Todos los días";
+    }
+
+    if (task.frequency === "weekdays") {
+      return "Lunes a viernes";
+    }
+
+    if (task.frequency === "once") {
+      return `Una vez · ${task.start_date}`;
+    }
+
+    if (task.frequency === "weekly") {
+      const names = {
+        1: "Lun",
+        2: "Mar",
+        3: "Mié",
+        4: "Jue",
+        5: "Vie",
+        6: "Sáb",
+        7: "Dom",
+      };
+
+      return (task.days_of_week || [])
+        .map((d) => names[d])
+        .join(" · ");
+    }
+
+    return "";
+  };
+
+  // ── DETALLE PACIENTE ────────────────────────────────────────────────────
+  if (selected) {
+    const avg = recs.length
+      ? Math.round(
+          recs.reduce((a, r) => a + (r.score || 0), 0) /
+            recs.length
+        )
+      : 0;
+
+    const avgs = PILLARS.map((p) => {
+      const pr = recs.filter((r) => r.pillar === p.key);
+
+      return pr.length
+        ? Math.round(
+            pr.reduce((a, r) => a + (r.score || 0), 0) /
+              pr.length
+          )
+        : 0;
+    });
+
+    const ini = (selected.full_name || "?")
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+
+    const imc =
+      selected.weight && selected.height
+        ? (
+            Number(selected.weight) /
+            Math.pow(Number(selected.height) / 100, 2)
+          ).toFixed(1)
+        : "—";
+
+    const activeTasks = tasks.filter((t) => t.active);
+    const inactiveTasks = tasks.filter((t) => !t.active);
+
+    // ── ADHERENCIA ÚLTIMOS 7 DÍAS ─────────────────────────────────────────
+    const formatLocalDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const isTaskDueOnDate = (task, date) => {
+      const dateString = formatLocalDate(date);
+
+      if (task.start_date && dateString < task.start_date) return false;
+      if (task.end_date && dateString > task.end_date) return false;
+
+      const jsDay = date.getDay();
+      const dbDay = jsDay === 0 ? 7 : jsDay;
+
+      if (task.frequency === "daily") return true;
+      if (task.frequency === "weekdays") return dbDay >= 1 && dbDay <= 5;
+      if (task.frequency === "weekly") {
+        return (task.days_of_week || []).includes(dbDay);
+      }
+      if (task.frequency === "once") return task.start_date === dateString;
+
+      return false;
+    };
+
+    const adherenceDays = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setHours(12, 0, 0, 0);
+      date.setDate(date.getDate() - i);
+
+      const dateString = formatLocalDate(date);
+
+      const scheduledTasks = tasks.filter((task) =>
+        isTaskDueOnDate(task, date)
+      );
+
+      const completedTasks = scheduledTasks.filter((task) =>
+        taskCompletions.some(
+          (completion) =>
+            completion.task_id === task.id &&
+            completion.completion_date === dateString &&
+            completion.completed === true
+        )
+      );
+
+      adherenceDays.push({
+        date: dateString,
+        scheduled: scheduledTasks.length,
+        completed: completedTasks.length,
+      });
+    }
+
+    const totalScheduled = adherenceDays.reduce(
+      (sum, day) => sum + day.scheduled,
+      0
+    );
+
+    const totalCompleted = adherenceDays.reduce(
+      (sum, day) => sum + day.completed,
+      0
+    );
+
+    const adherence7Days =
+      totalScheduled > 0
+        ? Math.round((totalCompleted / totalScheduled) * 100)
+        : null;
+
     return (
-      <div style={{ padding:16 }}>
-        <button onClick={()=>{setSelected(null);setRecs([]);setGoals([]);}}
-          style={{ border:"none",background:"none",color:"#888",fontSize:13,cursor:"pointer",marginBottom:16,padding:0 }}>← Volver</button>
+      <div style={{ padding: 16 }}>
+        {/* VOLVER */}
+        <button
+          onClick={() => {
+            setSelected(null);
+            setRecs([]);
+            setTasks([]);
+            setTaskCompletions([]);
+            setTaskError("");
+          }}
+          style={{
+            border: "none",
+            background: "none",
+            color: "#888",
+            fontSize: 13,
+            cursor: "pointer",
+            marginBottom: 16,
+            padding: 0,
+          }}
+        >
+          ← Volver
+        </button>
 
-        <div style={{ background:"#f7f7f7", borderRadius:14, padding:16, marginBottom:16, display:"flex", gap:14, alignItems:"center" }}>
-          <div style={{ width:52,height:52,borderRadius:"50%",background:"#E6F1FB",color:"#0C447C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,flexShrink:0 }}>{ini}</div>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:17, fontWeight:700 }}>{selected.full_name}</div>
-            <div style={{ fontSize:12, color:"#888", marginTop:2 }}>{selected.age?`${selected.age}a · `:""}{selected.sex==="M"?"M":selected.sex==="F"?"F":""}</div>
-            <div style={{ display:"flex", gap:16, marginTop:8 }}>
-              {[["IMC",imc],["%G",selected.body_fat||"—"],["Kg",selected.weight||"—"],["Score",avg||"—"]].map(([l,v])=>(
-                <div key={l} style={{ textAlign:"center" }}>
-                  <div style={{ fontSize:14, fontWeight:700 }}>{v}</div>
-                  <div style={{ fontSize:10, color:"#888" }}>{l}</div>
+        {/* PACIENTE */}
+        <div
+          style={{
+            background: "#f7f7f7",
+            borderRadius: 14,
+            padding: 16,
+            marginBottom: 16,
+            display: "flex",
+            gap: 14,
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: "#E6F1FB",
+              color: "#0C447C",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 18,
+              fontWeight: 800,
+              flexShrink: 0,
+            }}
+          >
+            {ini}
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>
+              {selected.full_name}
+            </div>
+
+            <div
+              style={{
+                fontSize: 12,
+                color: "#888",
+                marginTop: 2,
+              }}
+            >
+              {selected.age ? `${selected.age}a · ` : ""}
+              {selected.sex === "M"
+                ? "M"
+                : selected.sex === "F"
+                ? "F"
+                : ""}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 16,
+                marginTop: 8,
+              }}
+            >
+              {[
+                ["IMC", imc],
+                ["%G", selected.body_fat || "—"],
+                ["Kg", selected.weight || "—"],
+                ["Score", avg || "—"],
+              ].map(([l, v]) => (
+                <div key={l} style={{ textAlign: "center" }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {v}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "#888",
+                    }}
+                  >
+                    {l}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
+        {/* ADHERENCIA 7 DÍAS */}
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #e8e8e8",
+            borderRadius: 14,
+            padding: 16,
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>
+                Adherencia al plan
+              </div>
+              <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
+                Últimos 7 días
+              </div>
+            </div>
+
+            <div
+              style={{
+                fontSize: 26,
+                fontWeight: 800,
+                color:
+                  adherence7Days === null
+                    ? "#aaa"
+                    : adherence7Days >= 80
+                    ? "#1D9E75"
+                    : adherence7Days >= 50
+                    ? "#BA7517"
+                    : "#D85A30",
+              }}
+            >
+              {adherence7Days === null ? "—" : `${adherence7Days}%`}
+            </div>
+          </div>
+
+          <div
+            style={{
+              height: 7,
+              background: "#eee",
+              borderRadius: 10,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${adherence7Days || 0}%`,
+                background:
+                  adherence7Days === null
+                    ? "#ddd"
+                    : adherence7Days >= 80
+                    ? "#1D9E75"
+                    : adherence7Days >= 50
+                    ? "#BA7517"
+                    : "#D85A30",
+                borderRadius: 10,
+                transition: "width 0.25s ease",
+              }}
+            />
+          </div>
+
+          <div style={{ fontSize: 11, color: "#888", marginTop: 8 }}>
+            {totalScheduled === 0
+              ? "Sin tareas programadas en este período"
+              : `${totalCompleted} de ${totalScheduled} tareas completadas`}
+          </div>
+        </div>
+
+        {/* OBJETIVO */}
         {selected.objective && (
-          <div style={{ background:"#E1F5EE", borderRadius:10, padding:"10px 14px", marginBottom:12, fontSize:13, color:"#085041" }}>
+          <div
+            style={{
+              background: "#E1F5EE",
+              borderRadius: 10,
+              padding: "10px 14px",
+              marginBottom: 12,
+              fontSize: 13,
+              color: "#085041",
+            }}
+          >
             🎯 {selected.objective}
           </div>
         )}
-        {(selected.risk_hta||selected.risk_dm2||selected.risk_dislipidemia) && (
-          <div style={{ background:"#FAECE7", borderRadius:10, padding:"10px 14px", marginBottom:12, fontSize:12, color:"#4A1B0C" }}>
-            ⚠️ {[selected.risk_hta&&"HTA",selected.risk_dm2&&"DM2",selected.risk_dislipidemia&&"Dislipidemia"].filter(Boolean).join(" · ")}
+
+        {/* RIESGOS */}
+        {(selected.risk_hta ||
+          selected.risk_dm2 ||
+          selected.risk_dislipidemia) && (
+          <div
+            style={{
+              background: "#FAECE7",
+              borderRadius: 10,
+              padding: "10px 14px",
+              marginBottom: 12,
+              fontSize: 12,
+              color: "#4A1B0C",
+            }}
+          >
+            ⚠️{" "}
+            {[
+              selected.risk_hta && "HTA",
+              selected.risk_dm2 && "DM2",
+              selected.risk_dislipidemia &&
+                "Dislipidemia",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </div>
         )}
 
-        <p style={{ fontSize:15, fontWeight:700, marginBottom:12 }}>Pilares (promedio)</p>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:16 }}>
-          {PILLARS.map((p,i)=>(
-            <div key={p.key} style={{ background:"#f7f7f7", borderRadius:12, padding:12 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
-                <span style={{ fontSize:13, fontWeight:600 }}>{p.icon} {p.name}</span>
-                <span style={{ fontSize:20, fontWeight:800, color:COLORS[p.key].main }}>{avgs[i]||"—"}</span>
+        {/* PILARES */}
+        <p
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            marginBottom: 12,
+          }}
+        >
+          Pilares (promedio)
+        </p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 8,
+            marginBottom: 22,
+          }}
+        >
+          {PILLARS.map((p, i) => (
+            <div
+              key={p.key}
+              style={{
+                background: "#f7f7f7",
+                borderRadius: 12,
+                padding: 12,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 6,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  {p.icon} {p.name}
+                </span>
+
+                <span
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 800,
+                    color: COLORS[p.key].main,
+                  }}
+                >
+                  {avgs[i] || "—"}
+                </span>
               </div>
-              <ScoreBar score={avgs[i]||0} color={COLORS[p.key].main} />
+
+              <ScoreBar
+                score={avgs[i] || 0}
+                color={COLORS[p.key].main}
+              />
             </div>
           ))}
         </div>
 
-        <p style={{ fontSize:15, fontWeight:700, marginBottom:12 }}>Asignar meta al paciente</p>
-        <div style={{ background:"#f7f7f7", borderRadius:14, padding:14, marginBottom:16 }}>
-          <div style={{ fontSize:12, color:"#666", marginBottom:6, fontWeight:500 }}>Pilar</div>
-          <select value={newGoal.pillar} onChange={e=>setNewGoal(g=>({...g,pillar:e.target.value}))}
-            style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:"1px solid #ddd", fontSize:14, marginBottom:10, background:"#fff" }}>
-            {PILLARS.map(p=><option key={p.key} value={p.key}>{p.icon} {p.name}</option>)}
+        {/* ───────────────────────────────────────────── */}
+        {/* CREAR TAREA */}
+        {/* ───────────────────────────────────────────── */}
+
+        <p
+          style={{
+            fontSize: 18,
+            fontWeight: 800,
+            marginBottom: 4,
+          }}
+        >
+          Plan del paciente
+        </p>
+
+        <p
+          style={{
+            fontSize: 12,
+            color: "#888",
+            marginTop: 0,
+            marginBottom: 12,
+          }}
+        >
+          Asigna medicamentos, mediciones, ejercicio,
+          controles y otras tareas.
+        </p>
+
+        <div
+          style={{
+            background: "#f7f7f7",
+            borderRadius: 14,
+            padding: 14,
+            marginBottom: 20,
+          }}
+        >
+          {/* TIPO */}
+          <div
+            style={{
+              fontSize: 12,
+              color: "#666",
+              marginBottom: 6,
+              fontWeight: 500,
+            }}
+          >
+            Tipo
+          </div>
+
+          <select
+            value={newTask.task_type}
+            onChange={(e) =>
+              setNewTask((t) => ({
+                ...t,
+                task_type: e.target.value,
+              }))
+            }
+            style={{
+              ...inp,
+              marginBottom: 12,
+            }}
+          >
+            {Object.entries(TASK_TYPES).map(
+              ([key, value]) => (
+                <option key={key} value={key}>
+                  {value.icon} {value.label}
+                </option>
+              )
+            )}
           </select>
-          <div style={{ fontSize:12, color:"#666", marginBottom:6, fontWeight:500 }}>Descripción de la meta</div>
-          <input style={{...inp, marginBottom:10}} placeholder="Ej: Caminar 30 min diarios esta semana"
-            value={newGoal.description} onChange={e=>setNewGoal(g=>({...g,description:e.target.value}))} />
-          <button onClick={addGoal} disabled={addingGoal||!newGoal.description.trim()}
-            style={{ width:"100%", padding:"10px 0", background:addingGoal||!newGoal.description.trim()?"#ccc":"#1D9E75",
-              color:"#fff", border:"none", borderRadius:10, fontSize:14, fontWeight:700, cursor:"pointer" }}>
-            {addingGoal?"Guardando...":"+ Agregar meta"}
+
+          {/* TÍTULO */}
+          <div
+            style={{
+              fontSize: 12,
+              color: "#666",
+              marginBottom: 6,
+              fontWeight: 500,
+            }}
+          >
+            Título
+          </div>
+
+          <input
+            style={inp}
+            placeholder={
+              newTask.task_type === "medication"
+                ? "Ej: Tomar Losartán 50 mg"
+                : newTask.task_type === "measurement"
+                ? "Ej: Medir presión arterial"
+                : newTask.task_type === "exercise"
+                ? "Ej: Caminar 30 minutos"
+                : "Ej: Realizar tarea indicada"
+            }
+            value={newTask.title}
+            onChange={(e) =>
+              setNewTask((t) => ({
+                ...t,
+                title: e.target.value,
+              }))
+            }
+          />
+
+          {/* FRECUENCIA */}
+          <div
+            style={{
+              fontSize: 12,
+              color: "#666",
+              marginBottom: 6,
+              fontWeight: 500,
+            }}
+          >
+            Frecuencia
+          </div>
+
+          <select
+            value={newTask.frequency}
+            onChange={(e) =>
+              setNewTask((t) => ({
+                ...t,
+                frequency: e.target.value,
+                days_of_week:
+                  e.target.value === "weekly"
+                    ? t.days_of_week
+                    : [],
+              }))
+            }
+            style={inp}
+          >
+            {Object.entries(FREQUENCIES).map(
+              ([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              )
+            )}
+          </select>
+
+          {/* DÍAS ESPECÍFICOS */}
+          {newTask.frequency === "weekly" && (
+            <div style={{ marginBottom: 14 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#666",
+                  marginBottom: 8,
+                  fontWeight: 500,
+                }}
+              >
+                Días
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 6,
+                }}
+              >
+                {WEEK_DAYS.map((day) => {
+                  const active =
+                    newTask.days_of_week.includes(
+                      day.value
+                    );
+
+                  return (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() =>
+                        toggleWeekDay(day.value)
+                      }
+                      style={{
+                        flex: 1,
+                        height: 36,
+                        borderRadius: 9,
+                        border: active
+                          ? "2px solid #1D9E75"
+                          : "1px solid #ddd",
+                        background: active
+                          ? "#E1F5EE"
+                          : "#fff",
+                        color: active
+                          ? "#085041"
+                          : "#777",
+                        fontWeight: active
+                          ? 700
+                          : 500,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {day.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* HORA */}
+          <div
+            style={{
+              fontSize: 12,
+              color: "#666",
+              marginBottom: 6,
+              fontWeight: 500,
+            }}
+          >
+            Hora
+          </div>
+
+          <input
+            type="time"
+            style={inp}
+            value={newTask.task_time}
+            onChange={(e) =>
+              setNewTask((t) => ({
+                ...t,
+                task_time: e.target.value,
+              }))
+            }
+          />
+
+          {/* FECHAS */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#666",
+                  marginBottom: 6,
+                  fontWeight: 500,
+                }}
+              >
+                Inicio
+              </div>
+
+              <input
+                type="date"
+                style={inp}
+                value={newTask.start_date}
+                onChange={(e) =>
+                  setNewTask((t) => ({
+                    ...t,
+                    start_date: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#666",
+                  marginBottom: 6,
+                  fontWeight: 500,
+                }}
+              >
+                Término
+              </div>
+
+              <input
+                type="date"
+                style={inp}
+                value={newTask.end_date}
+                onChange={(e) =>
+                  setNewTask((t) => ({
+                    ...t,
+                    end_date: e.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          {/* INSTRUCCIONES */}
+          <div
+            style={{
+              fontSize: 12,
+              color: "#666",
+              marginBottom: 6,
+              fontWeight: 500,
+            }}
+          >
+            Instrucciones
+          </div>
+
+          <textarea
+            placeholder="Ej: Tomar después del desayuno"
+            value={newTask.instructions}
+            onChange={(e) =>
+              setNewTask((t) => ({
+                ...t,
+                instructions: e.target.value,
+              }))
+            }
+            style={{
+              width: "100%",
+              minHeight: 70,
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid #ddd",
+              fontSize: 14,
+              resize: "vertical",
+              boxSizing: "border-box",
+              fontFamily: "inherit",
+              marginBottom: 12,
+              outline: "none",
+            }}
+          />
+
+          {/* ERROR */}
+          {taskError && (
+            <div
+              style={{
+                background: "#FAECE7",
+                color: "#4A1B0C",
+                borderRadius: 8,
+                padding: "10px 12px",
+                fontSize: 12,
+                marginBottom: 10,
+              }}
+            >
+              ⚠️ {taskError}
+            </div>
+          )}
+
+          {/* CREAR */}
+          <button
+            onClick={addTask}
+            disabled={
+              addingTask || !newTask.title.trim()
+            }
+            style={{
+              width: "100%",
+              padding: "12px 0",
+              background:
+                addingTask ||
+                !newTask.title.trim()
+                  ? "#ccc"
+                  : "#1D9E75",
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor:
+                addingTask ||
+                !newTask.title.trim()
+                  ? "default"
+                  : "pointer",
+            }}
+          >
+            {addingTask
+              ? "Guardando..."
+              : "+ Agregar tarea"}
           </button>
         </div>
 
-        <p style={{ fontSize:15, fontWeight:700, marginBottom:12 }}>Metas asignadas ({goals.length})</p>
-        {goals.length===0
-          ? <div style={{ textAlign:"center", padding:20, color:"#888", fontSize:13 }}>Sin metas asignadas aún.</div>
-          : goals.map(g=>{
-              const c = COLORS[g.pillar]||COLORS.actividad;
+        {/* ───────────────────────────────────────────── */}
+        {/* TAREAS ACTIVAS */}
+        {/* ───────────────────────────────────────────── */}
+
+        <p
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            marginBottom: 12,
+          }}
+        >
+          Tareas activas ({activeTasks.length})
+        </p>
+
+        {activeTasks.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: 24,
+              color: "#888",
+              fontSize: 13,
+              background: "#f7f7f7",
+              borderRadius: 12,
+              marginBottom: 16,
+            }}
+          >
+            Este paciente aún no tiene tareas.
+          </div>
+        ) : (
+          activeTasks.map((task) => {
+            const type =
+              TASK_TYPES[task.task_type] ||
+              TASK_TYPES.general;
+
+            return (
+              <div
+                key={task.id}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  padding: "14px",
+                  background: "#fff",
+                  borderRadius: 12,
+                  marginBottom: 8,
+                  border: "1px solid #e5e5e5",
+                }}
+              >
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: "#E1F5EE",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                    flexShrink: 0,
+                  }}
+                >
+                  {type.icon}
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {task.title}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#777",
+                      marginTop: 4,
+                    }}
+                  >
+                    {getFrequencyText(task)}
+
+                    {task.task_time
+                      ? ` · ${task.task_time.slice(
+                          0,
+                          5
+                        )}`
+                      : ""}
+                  </div>
+
+                  {task.instructions && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#555",
+                        marginTop: 6,
+                      }}
+                    >
+                      {task.instructions}
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      marginTop: 10,
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        toggleTaskActive(task)
+                      }
+                      style={{
+                        border: "none",
+                        background: "#f0f0f0",
+                        borderRadius: 8,
+                        padding: "5px 9px",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        color: "#666",
+                      }}
+                    >
+                      Pausar
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        deleteTask(task.id)
+                      }
+                      style={{
+                        border: "none",
+                        background: "#FAECE7",
+                        borderRadius: 8,
+                        padding: "5px 9px",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        color: "#A33A1B",
+                      }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {/* TAREAS PAUSADAS */}
+        {inactiveTasks.length > 0 && (
+          <>
+            <p
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#888",
+                marginTop: 20,
+                marginBottom: 10,
+              }}
+            >
+              Tareas pausadas ({inactiveTasks.length})
+            </p>
+
+            {inactiveTasks.map((task) => {
+              const type =
+                TASK_TYPES[task.task_type] ||
+                TASK_TYPES.general;
+
               return (
-                <div key={g.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px",
-                  background:g.done?c.light:"#f7f7f7", borderRadius:12, marginBottom:8,
-                  border:`1.5px solid ${g.done?c.main:"#eee"}` }}>
-                  <div style={{ width:20, height:20, borderRadius:"50%", flexShrink:0,
-                    background:g.done?c.main:"transparent", border:`2px solid ${g.done?c.main:"#ccc"}`,
-                    display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11 }}>
-                    {g.done?"✓":""}
+                <div
+                  key={task.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "11px 12px",
+                    background: "#f7f7f7",
+                    borderRadius: 10,
+                    marginBottom: 7,
+                    opacity: 0.7,
+                  }}
+                >
+                  <span>{type.icon}</span>
+
+                  <div
+                    style={{
+                      flex: 1,
+                      fontSize: 12,
+                    }}
+                  >
+                    {task.title}
                   </div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:13, textDecoration:g.done?"line-through":"none", color:g.done?"#aaa":"inherit" }}>{g.description}</div>
-                    <span style={{ fontSize:11, padding:"2px 8px", borderRadius:20, background:c.light, color:c.dark }}>{g.pillar}</span>
-                  </div>
-                  <button onClick={()=>deleteGoal(g.id)}
-                    style={{ border:"none", background:"none", color:"#ccc", fontSize:18, cursor:"pointer", padding:"0 4px" }}>×</button>
+
+                  <button
+                    onClick={() =>
+                      toggleTaskActive(task)
+                    }
+                    style={{
+                      border: "none",
+                      background: "#E1F5EE",
+                      color: "#085041",
+                      borderRadius: 8,
+                      padding: "5px 9px",
+                      fontSize: 11,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Reactivar
+                  </button>
                 </div>
               );
-            })
-        }
+            })}
+          </>
+        )}
       </div>
     );
   }
 
+  // ── LISTA PACIENTES ─────────────────────────────────────────────────────
   return (
-    <div style={{ padding:16 }}>
-      <p style={{ fontSize:15, fontWeight:700, marginBottom:16 }}>Pacientes registrados</p>
-      {patients.length===0
-        ? <div style={{ textAlign:"center", padding:40, color:"#888", fontSize:13 }}>Aún no hay pacientes.</div>
-        : patients.map(pt=>{
-            const ini=(pt.full_name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
-            return (
-              <div key={pt.id} onClick={()=>open(pt)}
-                style={{ display:"flex", alignItems:"center", gap:12, padding:"13px 14px", background:"#f7f7f7", borderRadius:12, marginBottom:8, cursor:"pointer" }}>
-                <div style={{ width:42,height:42,borderRadius:"50%",background:"#E6F1FB",color:"#0C447C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,flexShrink:0 }}>{ini}</div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:14, fontWeight:600 }}>{pt.full_name}</div>
-                  <div style={{ fontSize:12, color:"#888" }}>{pt.age?`${pt.age}a · `:""}{pt.email}</div>
-                </div>
-                <span style={{ fontSize:13, color:"#bbb" }}>→</span>
+    <div style={{ padding: 16 }}>
+      <p
+        style={{
+          fontSize: 15,
+          fontWeight: 700,
+          marginBottom: 16,
+        }}
+      >
+        Pacientes registrados
+      </p>
+
+      {patients.length === 0 ? (
+        <div
+          style={{
+            textAlign: "center",
+            padding: 40,
+            color: "#888",
+            fontSize: 13,
+          }}
+        >
+          Aún no hay pacientes.
+        </div>
+      ) : (
+        patients.map((pt) => {
+          const ini = (pt.full_name || "?")
+            .split(" ")
+            .map((w) => w[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase();
+
+          return (
+            <div
+              key={pt.id}
+              onClick={() => open(pt)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "13px 14px",
+                background: "#f7f7f7",
+                borderRadius: 12,
+                marginBottom: 8,
+                cursor: "pointer",
+              }}
+            >
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  background: "#E6F1FB",
+                  color: "#0C447C",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                {ini}
               </div>
-            );
-          })
-      }
+
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                  }}
+                >
+                  {pt.full_name}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#888",
+                  }}
+                >
+                  {pt.age ? `${pt.age}a · ` : ""}
+                  {pt.email}
+                </div>
+              </div>
+
+              <span
+                style={{
+                  fontSize: 13,
+                  color: "#bbb",
+                }}
+              >
+                →
+              </span>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }
