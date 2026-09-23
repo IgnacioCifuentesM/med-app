@@ -4,13 +4,178 @@ import { friendlyError } from '../lib/api';
 import { Button, ErrorNotice, Field, Modal } from './ui';
 
 export default function TaskEditor({ api, doctorId, patientId, today, onClose, onSaved }) {
-  const [task, setTask] = useState({ title: '', description: '', instructions: '', task_type: 'general', frequency: 'daily', days_of_week: [], task_time: '', start_date: today, end_date: '', measurement_unit: '' });
-  const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  const set = (key, value) => setTask(t => ({ ...t, [key]: value }));
+  const [task, setTask] = useState({
+    title: '',
+    description: '',
+    instructions: '',
+    task_type: 'general',
+    frequency: 'daily',
+    days_of_week: [],
+    task_time: '',
+    start_date: today,
+    end_date: '',
+    measurement_unit: '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const set = (key, value) => setTask((t) => ({ ...t, [key]: value }));
   async function save(e) {
-    e.preventDefault(); if (busy) return; setError(''); const validation = validateTask(task); if (validation) { setError(validation); return; }
+    e.preventDefault();
+    if (busy) return;
+    setError('');
+    const validation = validateTask(task);
+    if (validation) {
+      setError(validation);
+      return;
+    }
     setBusy(true);
-    try { await api.addTask(doctorId, patientId, task); onSaved(); } catch (err) { setError(friendlyError(err)); } finally { setBusy(false); }
+    try {
+      await api.addTask(doctorId, patientId, task);
+      onSaved();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
   }
-  return <Modal title="Agregar actividad al plan" onClose={onClose} busy={busy} wide><ErrorNotice message={error} /><form onSubmit={save}><fieldset disabled={busy}><div className="form-grid"><Field label="Tipo de actividad">{id => <select id={id} value={task.task_type} onChange={e => set('task_type', e.target.value)}>{Object.entries(TASK_TYPES).map(([key, t]) => <option key={key} value={key}>{t.name}</option>)}</select>}</Field><Field label="Frecuencia">{id => <select id={id} value={task.frequency} onChange={e => set('frequency', e.target.value)}>{Object.entries(FREQUENCIES).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select>}</Field></div><Field label={task.task_type === 'medication' ? 'Medicamento y dosis indicada' : 'Nombre de la actividad'} required maxLength={160} value={task.title} onChange={e => set('title', e.target.value)} placeholder="Ej. Caminata de 20 minutos" /><Field label="Descripción para el paciente">{id => <textarea id={id} rows={2} maxLength={1000} value={task.description} onChange={e => set('description', e.target.value)} />}</Field>{task.task_type === 'medication' && <Field label="Instrucciones y vía de administración" maxLength={1000} value={task.instructions} onChange={e => set('instructions', e.target.value)} hint="Cada actividad representa una toma programada. Crea otra actividad si se requiere un segundo horario." />}{task.task_type === 'measurement' && <Field label="Unidad de la medición" required maxLength={30} placeholder="Ej. kg, mg/dL" value={task.measurement_unit} onChange={e => set('measurement_unit', e.target.value)} />}{task.frequency === 'weekly' && <fieldset className="weekdays"><legend>Días de la semana</legend>{WEEKDAYS.map((day, index) => <label key={day}><input type="checkbox" checked={task.days_of_week.includes(index + 1)} onChange={e => set('days_of_week', e.target.checked ? [...task.days_of_week, index + 1] : task.days_of_week.filter(d => d !== index + 1))} /><span>{day}</span></label>)}</fieldset>}<div className="form-grid"><Field label="Fecha de inicio" type="date" min={today} required value={task.start_date} onChange={e => set('start_date', e.target.value)} /><Field label="Fecha de término (opcional)" type="date" min={task.start_date} value={task.end_date} onChange={e => set('end_date', e.target.value)} /><Field label="Horario (opcional)" type="time" value={task.task_time} onChange={e => set('task_time', e.target.value)} /></div><p className="microcopy">Para cambiar una indicación, archiva la anterior y crea una nueva. Así se conserva su historial.</p><div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button type="submit" icon="plus">{busy ? 'Guardando…' : 'Agregar actividad'}</Button></div></fieldset></form></Modal>;
+  return (
+    <Modal title="Agregar actividad al plan" onClose={onClose} busy={busy} wide>
+      <ErrorNotice message={error} />
+      <form onSubmit={save}>
+        <fieldset disabled={busy}>
+          <div className="form-grid">
+            <Field label="Tipo de actividad">
+              {(id) => (
+                <select
+                  id={id}
+                  value={task.task_type}
+                  onChange={(e) => set('task_type', e.target.value)}
+                >
+                  {Object.entries(TASK_TYPES).map(([key, t]) => (
+                    <option key={key} value={key}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field label="Frecuencia">
+              {(id) => (
+                <select
+                  id={id}
+                  value={task.frequency}
+                  onChange={(e) => set('frequency', e.target.value)}
+                >
+                  {Object.entries(FREQUENCIES).map(([key, name]) => (
+                    <option key={key} value={key}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          </div>
+          <Field
+            label={
+              task.task_type === 'medication'
+                ? 'Medicamento y dosis indicada'
+                : 'Nombre de la actividad'
+            }
+            required
+            maxLength={160}
+            value={task.title}
+            onChange={(e) => set('title', e.target.value)}
+            placeholder="Ej. Caminata de 20 minutos"
+          />
+          <Field label="Descripción para el paciente">
+            {(id) => (
+              <textarea
+                id={id}
+                rows={2}
+                maxLength={1000}
+                value={task.description}
+                onChange={(e) => set('description', e.target.value)}
+              />
+            )}
+          </Field>
+          {task.task_type === 'medication' && (
+            <Field
+              label="Instrucciones y vía de administración"
+              maxLength={1000}
+              value={task.instructions}
+              onChange={(e) => set('instructions', e.target.value)}
+              hint="Cada actividad representa una toma programada. Crea otra actividad si se requiere un segundo horario."
+            />
+          )}
+          {task.task_type === 'measurement' && (
+            <Field
+              label="Unidad de la medición"
+              required
+              maxLength={30}
+              placeholder="Ej. kg, mg/dL"
+              value={task.measurement_unit}
+              onChange={(e) => set('measurement_unit', e.target.value)}
+            />
+          )}
+          {task.frequency === 'weekly' && (
+            <fieldset className="weekdays">
+              <legend>Días de la semana</legend>
+              {WEEKDAYS.map((day, index) => (
+                <label key={day}>
+                  <input
+                    type="checkbox"
+                    checked={task.days_of_week.includes(index + 1)}
+                    onChange={(e) =>
+                      set(
+                        'days_of_week',
+                        e.target.checked
+                          ? [...task.days_of_week, index + 1]
+                          : task.days_of_week.filter((d) => d !== index + 1),
+                      )
+                    }
+                  />
+                  <span>{day}</span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+          <div className="form-grid">
+            <Field
+              label="Fecha de inicio"
+              type="date"
+              min={today}
+              required
+              value={task.start_date}
+              onChange={(e) => set('start_date', e.target.value)}
+            />
+            <Field
+              label="Fecha de término (opcional)"
+              type="date"
+              min={task.start_date}
+              value={task.end_date}
+              onChange={(e) => set('end_date', e.target.value)}
+            />
+            <Field
+              label="Horario (opcional)"
+              type="time"
+              value={task.task_time}
+              onChange={(e) => set('task_time', e.target.value)}
+            />
+          </div>
+          <p className="microcopy">
+            Para cambiar una indicación, archiva la anterior y crea una nueva. Así se conserva su
+            historial.
+          </p>
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" icon="plus">
+              {busy ? 'Guardando…' : 'Agregar actividad'}
+            </Button>
+          </div>
+        </fieldset>
+      </form>
+    </Modal>
+  );
 }

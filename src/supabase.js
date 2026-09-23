@@ -1,5 +1,9 @@
 ﻿import { createClient } from '@supabase/supabase-js';
-const url = import.meta.env?.VITE_SUPABASE_URL;
-const key = import.meta.env?.VITE_SUPABASE_ANON_KEY;
-export const supabase = url && key ? createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;
-
+import { supabaseConfig } from './lib/config.js';
+const config = supabaseConfig(import.meta.env);
+export const configurationError = config.error;
+export const supabase = config.error
+  ? null
+  : createClient(config.url, config.key, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    });
