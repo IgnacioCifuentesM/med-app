@@ -47,7 +47,7 @@ export async function checked(query) {
   if (error) throw error;
   return data;
 }
-export function createApi(demo = false) {
+export function createApi(demo = false, client = supabase) {
   function read() {
     try {
       const data = JSON.parse(localStorage.getItem(DEMO_KEY));
@@ -73,12 +73,12 @@ export function createApi(demo = false) {
     localStorage.setItem(DEMO_KEY, JSON.stringify(data));
     return structuredClone(result ?? null);
   }
-  async function paged(table, configure) {
+  async function paged(table, configure, orderColumn = 'id') {
     const all = [];
     for (let offset = 0; ; offset += 500) {
       const rows = await checked(
-        configure(supabase.from(table).select('*'))
-          .order('id')
+        configure(client.from(table).select('*'))
+          .order(orderColumn)
           .range(offset, offset + 499),
       );
       all.push(...rows);
@@ -89,7 +89,7 @@ export function createApi(demo = false) {
     demo,
     async ready() {
       if (demo) return true;
-      const version = await checked(supabase.rpc('vitalia_status'));
+      const version = await checked(client.rpc('vitalia_status'));
       if (version < 3)
         fail('Es necesario actualizar la base de datos a Vitalia 3. Contacta al administrador.');
       return true;
@@ -97,7 +97,7 @@ export function createApi(demo = false) {
     async profile(id) {
       const p = demo
         ? read().profiles.find((p) => p.id === id)
-        : await checked(supabase.from('profiles').select('*').eq('id', id).maybeSingle());
+        : await checked(client.from('profiles').select('*').eq('id', id).maybeSingle());
       if (!p)
         fail('No se encontró tu perfil. Pide al administrador que revise el alta de tu cuenta.');
       if (!['patient', 'doctor'].includes(p.role))
@@ -109,11 +109,56 @@ export function createApi(demo = false) {
         ? read()
             .profiles.filter((p) => p.role === 'doctor')
             .map(({ id, full_name }) => ({ id, full_name }))
-        : checked(supabase.rpc('vitalia_doctors'));
+        : checked(client.rpc('vitalia_doctors'));
+    },
+    async searchDoctors(search = '', offset = 0, pageSize = 30) {
+      const size = Math.max(1, Math.min(50, pageSize));
+      const start = Math.max(0, offset);
+      if (demo) {
+        const normalize = (value) =>
+          value
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
+        const matches = (await this.doctors())
+          .filter((doctor) => normalize(doctor.full_name).includes(normalize(search.trim())))
+          .sort((a, b) => a.full_name.localeCompare(b.full_name) || a.id.localeCompare(b.id));
+        return {
+          items: matches.slice(start, start + size),
+          hasMore: matches.length > start + size,
+        };
+      }
+      let query = client.rpc('vitalia_doctors');
+      // RPC returns a table: PostgREST applies filters and ranges on the server.
+      // Escape LIKE wildcards so typed names are treated as literal text.
+      if (search.trim())
+        query = query.ilike('full_name', '%' + search.trim().replace(/[\\%_]/g, '\\$&') + '%');
+      const rows = await checked(
+        query
+          .order('full_name')
+          .order('id')
+          .range(start, start + size),
+      );
+      return { items: rows.slice(0, size), hasMore: rows.length > size };
+    },
+    async doctorNames(ids) {
+      const unique = [...new Set(ids.filter(Boolean))];
+      if (!unique.length) return [];
+      if (demo) return (await this.doctors()).filter((doctor) => unique.includes(doctor.id));
+      const rows = [];
+      for (let start = 0; start < unique.length; start += 100) {
+        rows.push(
+          ...(await checked(
+            client.rpc('vitalia_doctors').in('id', unique.slice(start, start + 100)),
+          )),
+        );
+      }
+      return rows;
     },
     async relationships(id) {
       if (demo) return read().doctor_patients.filter((r) => r.patient_id === id);
-      return paged('doctor_patients', (q) => q.eq('patient_id', id));
+      // Older databases identify a link by (patient_id, doctor_id), without an id.
+      return paged('doctor_patients', (q) => q.eq('patient_id', id), 'doctor_id');
     },
     async consents(id) {
       if (demo) return (read().sharing_consents || []).filter((c) => c.patient_id === id);
@@ -153,12 +198,12 @@ export function createApi(demo = false) {
           .map((r) => r.patient_id);
         return d.profiles.filter((p) => ids.includes(p.id));
       }
-      return checked(supabase.rpc('vitalia_patients'));
+      return checked(client.rpc('vitalia_patients'));
     },
     async doctorOverview(doctorId, search = '', filter = 'all', offset = 0, size = 10) {
       if (!demo)
         return checked(
-          supabase.rpc('vitalia_patient_page', {
+          client.rpc('vitalia_patient_page', {
             search_text: search,
             activity_filter: filter,
             page_offset: offset,
@@ -294,7 +339,7 @@ export function createApi(demo = false) {
           return d.profiles[index];
         });
       return checked(
-        supabase.rpc('vitalia_save_profile_v3', {
+        client.rpc('vitalia_save_profile_v3', {
           payload: patch,
           selected_doctors: doctorIds ?? null,
           consent_version: consentVersion || null,
@@ -333,7 +378,7 @@ export function createApi(demo = false) {
           return row;
         });
       return checked(
-        supabase
+        client
           .from('pillar_records')
           .upsert(row, { onConflict: 'user_id,date,pillar' })
           .select()
@@ -360,7 +405,7 @@ export function createApi(demo = false) {
           return row;
         });
       return checked(
-        supabase
+        client
           .from('task_completions')
           .upsert(row, { onConflict: 'task_id,completion_date' })
           .select()
@@ -387,7 +432,7 @@ export function createApi(demo = false) {
           d.tasks.push(saved);
           return saved;
         });
-      return checked(supabase.from('tasks').insert(row).select().single());
+      return checked(client.from('tasks').insert(row).select().single());
     },
     // Pausa/archivo al finalizar hoy: conserva la obligación y el cumplimiento del día.
     async taskStatus(task, action, today, doctorId) {
@@ -419,19 +464,25 @@ export function createApi(demo = false) {
           });
           return target;
         });
-      return checked(supabase.rpc('vitalia_task_status', { target_task: task.id, action }));
+      return checked(client.rpc('vitalia_task_status', { target_task: task.id, action }));
     },
     async resetDemo() {
       if (demo) localStorage.removeItem(DEMO_KEY);
     },
     async exportPatient(id) {
-      return {
-        profile: await this.profile(id),
-        relationships: await this.relationships(id),
-        consents: await this.consents(id),
-        measurements: await this.measurements(id),
-        ...(await this.patientData(id, '1900-01-01', '9999-12-31')),
-      };
+      const [profile, relationships, consents, measurements, patientData] = await Promise.all([
+        this.profile(id),
+        this.relationships(id),
+        this.consents(id),
+        this.measurements(id),
+        this.patientData(id, '1900-01-01', '9999-12-31'),
+      ]);
+      const professionals = await this.doctorNames([
+        ...relationships.map((row) => row.doctor_id),
+        ...consents.map((row) => row.doctor_id),
+        ...patientData.tasks.map((row) => row.doctor_id),
+      ]);
+      return { profile, relationships, consents, measurements, professionals, ...patientData };
     },
   };
 }

@@ -2660,3 +2660,145 @@ code {
 .doctor-task-info > small {
   display: block;
 }
+
+.doctor-picker {
+  margin: 20px 0;
+}
+.doctor-picker-label {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.doctor-picker-anchor {
+  position: relative;
+}
+.doctor-picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--ink);
+  background: white;
+  text-align: left;
+}
+.doctor-picker-trigger span {
+  flex: 1;
+}
+.doctor-picker-trigger[aria-expanded='true'] {
+  border-color: var(--green);
+}
+.doctor-picker-trigger[aria-expanded='true'] > svg:last-child {
+  transform: rotate(90deg);
+}
+.doctor-picker-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 25;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: white;
+  box-shadow: 0 14px 40px #233d3226;
+  max-height: 70dvh;
+  overflow: auto;
+}
+.doctor-picker-search label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.doctor-picker-search input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f7f9f7;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+.doctor-picker-results {
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 12px 0;
+}
+.doctor-picker-results .loading {
+  min-height: 80px;
+  padding: 15px;
+}
+.doctor-picker-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.doctor-picker-option:hover,
+.doctor-picker-option:focus-within {
+  background: #edf5ee;
+}
+.doctor-picker-option input {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  accent-color: var(--green);
+}
+.doctor-picker-option span {
+  overflow-wrap: anywhere;
+}
+.doctor-picker-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  margin-bottom: 10px;
+  padding-top: 8px;
+}
+.doctor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.doctor-chips li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 5px 3px 12px;
+  color: var(--green);
+  background: #edf5ee;
+  border-radius: 20px;
+  font-size: 12px;
+}
+.doctor-chips li span {
+  overflow-wrap: anywhere;
+}
+.doctor-chips button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+}
+.doctor-picker > .microcopy {
+  margin-top: 10px;
+}

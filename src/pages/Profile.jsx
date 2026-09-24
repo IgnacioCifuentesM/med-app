@@ -4,6 +4,7 @@ import { validateProfile } from '../lib/domain';
 import { CONSENT_TEXT, CONSENT_VERSION } from '../lib/consent';
 import { friendlyError } from '../lib/api';
 import MeasurementHistory from '../components/MeasurementHistory';
+import DoctorPicker from '../components/DoctorPicker';
 import {
   Avatar,
   Badge,
@@ -20,10 +21,13 @@ export default function Profile({ api, profile, onUpdated, notify, onboarding = 
   const doctor = profile.role === 'doctor';
   const loader = useCallback(async () => {
     if (doctor) return { doctors: [], relationships: [], consents: [] };
-    const [doctors, relationships, consents] = await Promise.all([
-      api.doctors(),
+    const [relationships, consents] = await Promise.all([
       api.relationships(profile.id),
       api.consents(profile.id),
+    ]);
+    const doctors = await api.doctorNames([
+      ...relationships.map((row) => row.doctor_id),
+      ...consents.map((row) => row.doctor_id),
     ]);
     return { doctors, relationships, consents };
   }, [api, doctor, profile.id]);
@@ -110,17 +114,9 @@ function ProfileForm({
     setError('');
     try {
       const data = await api.exportPatient(profile.id);
-      const url = URL.createObjectURL(
-        new Blob([JSON.stringify({ exported_at: new Date().toISOString(), ...data }, null, 2)], {
-          type: 'application/json',
-        }),
-      );
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'mis-datos-vitalia.json';
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      notify('Se descargó una copia de tus datos.');
+      const { downloadPatientPdf } = await import('../lib/patientPdf');
+      await downloadPatientPdf(data);
+      notify('Se descargó el PDF con tus datos.');
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -190,30 +186,16 @@ function ProfileForm({
                     Puedes tener varios médicos. Cada uno podrá ver tus registros y gestionar las
                     actividades que te indique.
                   </SectionHeading>
-                  <fieldset className="doctor-selection">
-                    <legend>Profesionales con acceso a tus datos</legend>
-                    {!doctors.length && (
-                      <p className="muted">
-                        Todavía no hay profesionales disponibles. Puedes continuar sin vincular a
-                        uno.
-                      </p>
-                    )}
-                    {doctors.map((d) => (
-                      <label className="checkbox-label" key={d.id}>
-                        <input
-                          type="checkbox"
-                          checked={selectedDoctors.includes(d.id)}
-                          onChange={(e) => {
-                            setSelectedDoctors((ids) =>
-                              e.target.checked ? [...ids, d.id] : ids.filter((id) => id !== d.id),
-                            );
-                            setConsent(false);
-                          }}
-                        />
-                        <span>{d.full_name}</span>
-                      </label>
-                    ))}
-                  </fieldset>
+                  <DoctorPicker
+                    api={api}
+                    doctors={doctors}
+                    selected={selectedDoctors}
+                    disabled={busy}
+                    onChange={(ids) => {
+                      setSelectedDoctors(ids);
+                      setConsent(false);
+                    }}
+                  />
                   {!!removed.length && (
                     <div className="notice">
                       <Icon name="info" />
@@ -286,12 +268,10 @@ function ProfileForm({
           <section className="panel export-panel">
             <div>
               <h2>Tus datos te pertenecen.</h2>
-              <p>
-                Descarga tu perfil, hábitos, actividades, medidas y autorizaciones en formato JSON.
-              </p>
+              <p>Descarga tu perfil, hábitos, actividades, medidas y autorizaciones en un PDF.</p>
             </div>
             <Button variant="secondary" icon="download" disabled={exporting} onClick={exportData}>
-              {exporting ? 'Preparando…' : 'Exportar mis datos'}
+              {exporting ? 'Preparando…' : 'Descargar mis datos en PDF'}
             </Button>
           </section>
         </>
