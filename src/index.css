@@ -442,6 +442,28 @@ textarea {
   font-size: 11px;
   color: #87928a;
 }
+.topbar-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.topbar-logout:hover {
+  background: #edf5ee;
+}
+.topbar-logout:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
 .mobile-brand {
   display: none;
 }
@@ -2247,6 +2269,14 @@ code {
   }
   .topbar-right {
     gap: 10px;
+  }
+  .topbar-logout {
+    width: 44px;
+    padding: 0;
+  }
+  .topbar-logout span,
+  .topbar-right .date-chip {
+    display: none;
   }
   .date-chip {
     font-size: 9px;

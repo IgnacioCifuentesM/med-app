@@ -103,6 +103,16 @@ export default function Shell({
             >
               <Avatar name={profile.full_name} />
             </button>
+            <button
+              type="button"
+              className="topbar-logout"
+              onClick={logout}
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
+            >
+              <Icon name="logout" size={18} />
+              <span>Cerrar sesión</span>
+            </button>
           </div>
         </header>
         {demo && (
