@@ -17,6 +17,8 @@ export default function TaskEditor({ api, doctorId, patientId, today, onClose, o
     measurement_unit: '',
   });
   const [busy, setBusy] = useState(false);
+  const [pdf, setPdf] = useState(null);
+  const [fileKey, setFileKey] = useState(0);
   const [error, setError] = useState('');
   const set = (key, value) => setTask((t) => ({ ...t, [key]: value }));
   async function save(e) {
@@ -30,7 +32,7 @@ export default function TaskEditor({ api, doctorId, patientId, today, onClose, o
     }
     setBusy(true);
     try {
-      await api.addTask(doctorId, patientId, task);
+      await api.addTask(doctorId, patientId, task, pdf);
       onSaved();
     } catch (err) {
       setError(friendlyError(err));
@@ -98,6 +100,32 @@ export default function TaskEditor({ api, doctorId, patientId, today, onClose, o
               />
             )}
           </Field>
+          <Field label="Guía en PDF (opcional)" hint="PDF · máximo 10 MB">
+            {(id) => (
+              <input
+                key={fileKey}
+                id={id}
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={(e) => setPdf(e.target.files?.[0] || null)}
+              />
+            )}
+          </Field>
+          {pdf && (
+            <div className="attachment-selection">
+              <span>{pdf.name}</span>
+              <Button
+                variant="ghost"
+                icon="close"
+                onClick={() => {
+                  setPdf(null);
+                  setFileKey((key) => key + 1);
+                }}
+              >
+                Quitar PDF
+              </Button>
+            </div>
+          )}
           {task.task_type === 'medication' && (
             <Field
               label="Instrucciones y vía de administración"

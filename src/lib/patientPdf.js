@@ -159,9 +159,12 @@ export function createPatientPdf(data, { fontBase64, generatedAt = new Date() } 
       const values = pillar
         ? recordValues(pillar, record.data)
         : record.data?.values || record.data || {};
-      const details = pillar
+      let details = pillar
         ? pillar.fields
-            .map((field) => `${field.label}: ${valueWithUnit(values[field.key], field.unit || '')}`)
+            .map(
+              (field) =>
+                `${field.label}: ${field.type === 'checkbox' ? yesNo(values[field.key]) : valueWithUnit(values[field.key], field.unit || '')}`,
+            )
             .join('\n')
         : typeof values === 'object'
           ? Object.entries(values)
@@ -169,9 +172,11 @@ export function createPatientPdf(data, { fontBase64, generatedAt = new Date() } 
               .map(([key, value]) => `${key}: ${text(value)}`)
               .join('\n')
           : text(values);
+      if (pillar?.key === 'actividad' && values.minutes != null && values.cardio_minutes == null)
+        details += `\nEjercicio (registro anterior): ${values.minutes} minutos`;
       const score = normalizedScore(record);
       return [
-        `${day(record.date)}\n${pillar?.name || text(record.pillar)}\nIndicador: ${score == null ? 'Sin dato' : `${score}/100`}`,
+        `${day(record.date)}\n${pillar?.name || text(record.pillar)}${pillar?.key === 'actividad' ? '\nScore: semanal' : `\nIndicador del registro: ${score == null ? 'Sin dato' : `${score}/100`}`}`,
         details,
         text(values.note),
       ];

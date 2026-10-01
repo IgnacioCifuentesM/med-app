@@ -50,6 +50,25 @@ where id = 'UUID-DE-LA-CUENTA-AUTORIZADA';
 
 Verifica la identidad del profesional antes de asignar el rol. La app no contiene una herramienta de invitación automática.
 
+## Actualización del 1 de octubre: PDF, energía y Educación
+
+Sobre una instalación Vitalia 3, ejecutar en este orden en Supabase SQL Editor:
+
+1. `supabase/migrations/202610010001_activity_pdfs.sql`.
+2. `supabase/migrations/202610010002_energy_education.sql`.
+3. `supabase/migrations/202610010003_weekly_scores.sql`.
+
+En instalaciones nuevas ejecutar primero `supabase/INSTALAR_VITALIA.sql` y después las tres migraciones anteriores. El instalador base conserva su versión 3; estas migraciones complementarias son repetibles. Desplegar el frontend después de aplicarlas. No requieren una clave privada en el navegador. Si PDF y Educación ya están activos, solo falta la tercera migración para guardar cardio/fuerza y actualizar el resumen profesional.
+
+- **Agregar actividad:** un PDF opcional de hasta 10 MB. El archivo se sube antes de guardar la actividad. Si falla el guardado, se intenta limpiar el archivo huérfano; un archivo ya asociado nunca se elimina con esa limpieza.
+- **Paciente:** sección Mis guías en el menú y acceso directo en Mi día, incluso en días en que la actividad no esté programada. El visor también ofrece abrir en otra pestaña para navegadores móviles sin visor integrado.
+- **Acceso:** bucket privado `activity-pdfs`, paciente y profesionales actualmente vinculados. Los enlaces de lectura duran 5 minutos; un enlace ya emitido puede seguir funcionando durante ese plazo tras retirar acceso. Los PDF de demostración viven en IndexedDB del mismo navegador y no se suben a Supabase. [Referencia de permisos de Storage](https://supabase.com/docs/guides/storage/security/access-control).
+- **Energía:** registro independiente 0–10, sin valor guardado por defecto. Historial y promedio excluyen días sin registro; cero es un valor válido. Visible en Mi día, Mi progreso y ficha profesional. No cambia los puntajes de los pilares ni determina eficacia clínica por sí solo.
+- **Educación:** seis pestañas, una publicación por profesional/pilar/semana (lunes a domingo). El profesional puede guardar borradores, retirar una publicación o preparar semanas futuras. Cada paciente ve publicaciones de su equipo, a partir de su semana de vigencia. No se incluye contenido clínico inventado: las profesionales escriben y publican sus materiales.
+- **Scores semanales:** las seis tarjetas muestran la semana de lunes a domingo. Movimiento promedia tres componentes con igual peso, limitados a 100: promedio del cumplimiento diario de 7.500 pasos (cada día se limita a 100 antes de promediar), minutos de cardio acumulados / 150 y días con fuerza / 3. Los otros cinco pilares promedian sus registros dentro de la semana. Se indica la cobertura; los días sin registros no se imputan como cero. Los minutos históricos de ejercicio no se convierten en cardio ni fuerza. Sin datos de uno de los tres componentes, Movimiento queda sin score hasta registrarlos. El formulario diario de Movimiento incluye cardio y la casilla de entrenamiento de fuerza; no hay un panel deportivo separado.
+
+Verificación focalizada: `node --test tests/attachments.test.js tests/weekly.test.js tests/wellbeing-database.test.js`.
+
 ## Publicar en Vercel
 
 Configura en el proyecto Vercel las mismas variables públicas, para el entorno que uses (Production/Preview), y vuelve a desplegar. Un archivo `.env.local` de tu PC no configura Vercel.

@@ -5,7 +5,10 @@ import { Button, ErrorNotice, Field, Icon, Modal } from './ui';
 
 export default function PillarEditor({ pillarKey, record, date, api, userId, onClose, onSaved }) {
   const pillar = PILLARS.find((p) => p.key === pillarKey);
-  const [values, setValues] = useState(() => recordValues(pillar, record?.data));
+  const [values, setValues] = useState(() => ({
+    ...(pillarKey === 'actividad' ? { strength: false } : {}),
+    ...recordValues(pillar, record?.data),
+  }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function save(e) {
@@ -45,20 +48,39 @@ export default function PillarEditor({ pillarKey, record, date, api, userId, onC
       <ErrorNotice message={error} />
       <form onSubmit={save}>
         <fieldset disabled={busy}>
-          {pillar.fields.map((f) => (
-            <Field
-              key={f.key}
-              label={f.label}
-              hint={f.unit}
-              type={f.type}
-              min={f.min}
-              max={f.max}
-              step={f.step}
-              value={values[f.key] ?? ''}
-              required={f.type === 'number'}
-              onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-            />
-          ))}
+          {pillarKey === 'actividad' &&
+            record &&
+            recordValues(pillar, record.data).cardio_minutes == null && (
+              <p className="microcopy">
+                El registro anterior tiene ejercicio sin separar cardio y fuerza. Confirma ambos
+                datos al actualizarlo.
+              </p>
+            )}
+          {pillar.fields.map((f) =>
+            f.type === 'checkbox' ? (
+              <label className="education-publish" key={f.key}>
+                <input
+                  type="checkbox"
+                  checked={values[f.key] === true}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.checked }))}
+                />
+                {f.label}
+              </label>
+            ) : (
+              <Field
+                key={f.key}
+                label={f.label}
+                hint={f.unit}
+                type={f.type}
+                min={f.min}
+                max={f.max}
+                step={f.step}
+                value={values[f.key] ?? ''}
+                required={f.type === 'number'}
+                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+              />
+            ),
+          )}
           <Field label="Algo que quieras recordar (opcional)">
             {(id) => (
               <textarea

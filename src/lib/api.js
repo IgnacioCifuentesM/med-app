@@ -8,13 +8,19 @@ import {
   validateProfile,
   PILLARS,
   validatePillar,
-  habitSummary,
   daysBetween,
 } from './domain.js';
 import { CONSENT_VERSION, CONSENT_TEXT } from './consent.js';
+import { demoPdf, PDF_BUCKET, validatePdf } from './attachments.js';
+import { validEnergy, weekStart } from './wellbeing.js';
+import { weeklySummary } from './weekly.js';
 const DEMO_KEY = 'vitalia-demo-v2';
 export function friendlyError(error) {
   const text = error?.message || '';
+  if (/Bucket not found/i.test(text))
+    return 'Falta activar los adjuntos PDF en Supabase. Contacta al administrador.';
+  if (/Invalid record format/i.test(text))
+    return 'Es necesario actualizar Supabase para guardar cardio y entrenamiento de fuerza. Contacta al administrador.';
   if (/Invalid login credentials/i.test(text)) return 'El correo o la contraseña no son correctos.';
   if (/Email not confirmed/i.test(text)) return 'Confirma tu correo antes de entrar.';
   if (/rate limit|too many/i.test(text))
@@ -168,6 +174,10 @@ export function createApi(demo = false, client = supabase) {
       if (demo) return (read().profile_measurements || []).filter((m) => m.patient_id === id);
       return paged('profile_measurements', (q) => q.eq('patient_id', id));
     },
+    async patientTasks(id) {
+      if (demo) return read().tasks.filter((task) => task.patient_id === id);
+      return paged('tasks', (q) => q.eq('patient_id', id));
+    },
     async patientData(id, from, to) {
       if (demo) {
         const d = read();
@@ -203,7 +213,7 @@ export function createApi(demo = false, client = supabase) {
     async doctorOverview(doctorId, search = '', filter = 'all', offset = 0, size = 10) {
       if (!demo)
         return checked(
-          client.rpc('vitalia_patient_page', {
+          client.rpc('vitalia_patient_page_weekly', {
             search_text: search,
             activity_filter: filter,
             page_offset: offset,
@@ -226,7 +236,7 @@ export function createApi(demo = false, client = supabase) {
           profile,
           last,
           inactive: !last || daysBetween(last, today) >= 3,
-          summary: habitSummary(records.filter((r) => r.date >= addDays(today, -6))),
+          summary: weeklySummary(records, today),
         };
       });
       const normalize = (s) =>
@@ -365,7 +375,7 @@ export function createApi(demo = false, client = supabase) {
         user_id: id,
         date,
         pillar: key,
-        data: { version: 2, values },
+        data: { version: key === 'actividad' ? 3 : 2, values },
         score: scorePillar(key, values),
       };
       if (demo)
@@ -412,11 +422,18 @@ export function createApi(demo = false, client = supabase) {
           .single(),
       );
     },
-    async addTask(doctorId, patientId, task) {
+    async addTask(doctorId, patientId, task, pdf = null) {
       const error = validateTask(task);
       if (error) fail(error);
+      if (pdf) {
+        const pdfError = await validatePdf(pdf);
+        if (pdfError) fail(pdfError);
+      }
+      const id = crypto.randomUUID();
+      const path = pdf ? `${doctorId}/${patientId}/${id}.pdf` : null;
       const row = {
         ...task,
+        id,
         title: task.title.trim(),
         patient_id: patientId,
         doctor_id: doctorId,
@@ -425,14 +442,51 @@ export function createApi(demo = false, client = supabase) {
         days_of_week: task.frequency === 'weekly' ? task.days_of_week : [],
         active: true,
         active_periods: [{ from: task.start_date, to: null }],
+        ...(pdf
+          ? { attachment_path: path, attachment_name: pdf.name, attachment_size: pdf.size }
+          : {}),
       };
-      if (demo)
-        return mutate((d) => {
-          const saved = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString() };
-          d.tasks.push(saved);
-          return saved;
-        });
-      return checked(client.from('tasks').insert(row).select().single());
+      if (pdf) {
+        if (demo) await demoPdf('put', path, pdf);
+        else
+          await checked(
+            client.storage
+              .from(PDF_BUCKET)
+              .upload(path, pdf, { contentType: 'application/pdf', upsert: false }),
+          );
+      }
+      try {
+        if (demo)
+          return await mutate((d) => {
+            const saved = { ...row, created_at: new Date().toISOString() };
+            d.tasks.push(saved);
+            return saved;
+          });
+        return await checked(client.from('tasks').insert(row).select().single());
+      } catch (err) {
+        if (pdf) {
+          // RLS only permits deletion of unattached files, including ambiguous network failures.
+          try {
+            if (demo) await demoPdf('delete', path);
+            else await checked(client.storage.from(PDF_BUCKET).remove([path]));
+          } catch {
+            /* Preserve the original save error; an orphan can be cleaned up later. */
+          }
+        }
+        throw err;
+      }
+    },
+    async taskPdf(task) {
+      if (!task.attachment_path) fail('Esta actividad no tiene un PDF adjunto.');
+      if (demo) {
+        const file = await demoPdf('get', task.attachment_path);
+        if (!file) fail('El PDF de demostración ya no está en este navegador.');
+        return URL.createObjectURL(file);
+      }
+      const result = await checked(
+        client.storage.from(PDF_BUCKET).createSignedUrl(task.attachment_path, 300),
+      );
+      return result.signedUrl;
     },
     // Pausa/archivo al finalizar hoy: conserva la obligación y el cumplimiento del día.
     async taskStatus(task, action, today, doctorId) {
@@ -468,6 +522,101 @@ export function createApi(demo = false, client = supabase) {
     },
     async resetDemo() {
       if (demo) localStorage.removeItem(DEMO_KEY);
+    },
+    async energyRecords(id, from, to) {
+      if (demo)
+        return (read().daily_energy || []).filter(
+          (r) => r.patient_id === id && r.date >= from && r.date <= to,
+        );
+      return paged(
+        'daily_energy',
+        (q) => q.eq('patient_id', id).gte('date', from).lte('date', to),
+        'date',
+      );
+    },
+    async saveEnergy(id, date, value) {
+      if (!validEnergy(value)) fail('Selecciona un nivel de energía entre 0 y 10.');
+      const person = await this.profile(id);
+      const today = dateKey(new Date(), person.timezone);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < addDays(today, -29) || date > today)
+        fail('Solo puedes editar registros de los últimos 30 días.');
+      const row = { patient_id: id, date, value };
+      if (demo)
+        return mutate((d) => {
+          d.daily_energy ||= [];
+          const existing = d.daily_energy.find((r) => r.patient_id === id && r.date === date);
+          if (existing) Object.assign(existing, row);
+          else d.daily_energy.push(row);
+          return row;
+        });
+      return checked(
+        client
+          .from('daily_energy')
+          .upsert(row, { onConflict: 'patient_id,date' })
+          .select()
+          .single(),
+      );
+    },
+    async education(profile, week) {
+      if (demo) {
+        const data = read();
+        const authors =
+          profile.role === 'doctor'
+            ? [profile.id]
+            : data.doctor_patients
+                .filter((r) => r.patient_id === profile.id)
+                .map((r) => r.doctor_id);
+        return (data.education_posts || []).filter(
+          (p) =>
+            p.week_start === week &&
+            authors.includes(p.doctor_id) &&
+            (profile.role === 'doctor' ||
+              (p.published && p.week_start <= dateKey(new Date(), profile.timezone))),
+        );
+      }
+      return paged('education_posts', (q) => q.eq('week_start', week));
+    },
+    async saveEducation(doctorId, post) {
+      if (
+        !PILLARS.some((p) => p.key === post.pillar) ||
+        weekStart(post.week_start) !== post.week_start
+      )
+        fail('Selecciona un pilar y una semana válidos.');
+      if (
+        !post.title.trim() ||
+        post.title.length > 160 ||
+        !post.content.trim() ||
+        post.content.length > 12000
+      )
+        fail('Completa el título y el contenido de la publicación.');
+      const row = {
+        doctor_id: doctorId,
+        pillar: post.pillar,
+        week_start: post.week_start,
+        title: post.title.trim(),
+        content: post.content.trim(),
+        published: Boolean(post.published),
+      };
+      if (demo)
+        return mutate((d) => {
+          d.education_posts ||= [];
+          const existing = d.education_posts.find(
+            (p) =>
+              p.doctor_id === doctorId &&
+              p.pillar === row.pillar &&
+              p.week_start === row.week_start,
+          );
+          if (existing) Object.assign(existing, row);
+          else d.education_posts.push({ ...row, id: crypto.randomUUID() });
+          return row;
+        });
+      return checked(
+        client
+          .from('education_posts')
+          .upsert(row, { onConflict: 'doctor_id,pillar,week_start' })
+          .select()
+          .single(),
+      );
     },
     async exportPatient(id) {
       const [profile, relationships, consents, measurements, patientData] = await Promise.all([

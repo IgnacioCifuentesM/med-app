@@ -3,6 +3,7 @@ import { TASK_TYPES } from '../lib/domain';
 import { useResource } from '../hooks/useResource';
 import { friendlyError } from '../lib/api';
 import { Badge, Button, Empty, ErrorNotice, Field, Icon, Modal } from './ui';
+import TaskPdf from './TaskPdf';
 
 export default function TaskList({ tasks, completions, day, api, onChanged }) {
   const doctorsLoader = useCallback(() => api.doctors(), [api]);
@@ -92,6 +93,7 @@ export default function TaskList({ tasks, completions, day, api, onChanged }) {
                     <h3>{task.title}</h3>
                     <p>{task.description || task.instructions || type.name}</p>
                     {task.instructions && task.description && <small>{task.instructions}</small>}
+                    <TaskPdf api={api} task={task} />
                     {completion?.measurement_value != null && done && (
                       <Badge>
                         {completion.measurement_value} {task.measurement_unit}

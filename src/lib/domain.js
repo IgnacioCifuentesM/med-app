@@ -64,8 +64,9 @@ export const PILLARS = [
     description: 'Muévete a tu propio ritmo.',
     fields: [
       number('steps', 'Pasos', 0, 100000, 'pasos'),
-      number('minutes', 'Ejercicio', 0, 600, 'minutos'),
+      number('cardio_minutes', 'Cardio de hoy', 0, 600, 'minutos'),
       number('intensity', 'Intensidad percibida', 1, 10, '/ 10'),
+      { key: 'strength', label: 'Hice entrenamiento de fuerza hoy', type: 'checkbox' },
     ],
   },
   {
@@ -118,11 +119,15 @@ export const PILLARS = [
 export function recordValues(pillar, data) {
   if (!data) return {};
   if (!Array.isArray(data)) return data.values || data;
+  if (pillar.key === 'actividad')
+    return { steps: data[0], minutes: data[1], intensity: data[2], note: data[3] || '' };
   const values = Object.fromEntries(pillar.fields.map((f, i) => [f.key, data[i] ?? '']));
   if (data.length > pillar.fields.length) values.note = data[pillar.fields.length];
   return values;
 }
 export function validatePillar(pillar, values) {
+  if (pillar.key === 'actividad' && typeof values.strength !== 'boolean')
+    return 'Confirma si realizaste trabajo de fuerza hoy.';
   for (const f of pillar.fields.filter((f) => f.type === 'number')) {
     const n = Number(values[f.key]);
     if (
@@ -143,6 +148,29 @@ export function validatePillar(pillar, values) {
 // Intensidad, agua y horario se conservan como contexto, no como objetivos universales.
 export function scorePillar(key, values) {
   const pillar = PILLARS.find((p) => p.key === key);
+  // Daily movement scores are retained only for decoding historical v2 data.
+  if (key === 'actividad') {
+    if ('cardio_minutes' in values || 'strength' in values) return null;
+    if (
+      ['steps', 'minutes', 'intensity'].some(
+        (k) => values[k] == null || values[k] === '' || !Number.isFinite(Number(values[k])),
+      )
+    )
+      return null;
+    if (
+      values.steps < 0 ||
+      values.steps > 100000 ||
+      values.minutes < 0 ||
+      values.minutes > 600 ||
+      values.intensity < 1 ||
+      values.intensity > 10
+    )
+      return null;
+    return mean([
+      clamp((Number(values.steps) / 8000) * 100),
+      clamp((Number(values.minutes) / 30) * 100),
+    ]);
+  }
   if (!pillar || validatePillar(pillar, values)) return null;
   const v = Object.fromEntries(Object.entries(values).map(([k, n]) => [k, Number(n)]));
   const scale = (n) => clamp(((n - 1) / 9) * 100);

@@ -77,7 +77,8 @@ export function createDemo() {
             nutricion: { portions: 3 + (offset % 3), quality, water: 6 },
             actividad: {
               steps: 4200 + (27 - offset) * 110,
-              minutes: 15 + (offset % 4) * 5,
+              cardio_minutes: 15 + (offset % 4) * 5,
+              strength: offset % 3 === 0,
               intensity: 5,
             },
             sueno: { hours: 7.5, quality, bedtime: '23:00' },
@@ -92,7 +93,7 @@ export function createDemo() {
             date: addDays(today, -offset),
             pillar: p.key,
             score: scorePillar(p.key, values),
-            data: { version: 2, values },
+            data: { version: p.key === 'actividad' ? 3 : 2, values },
             updated_at: new Date().toISOString(),
           });
         });

@@ -5,6 +5,7 @@ import { installerSql } from '../scripts/build-sql.js';
 import { createDemo } from '../src/lib/demo.js';
 import { readFileSync } from 'node:fs';
 import { CONSENT_VERSION } from '../src/lib/consent.js';
+import { scorePillar } from '../src/lib/domain.js';
 
 test('Migración, permisos, equipos y registros en PostgreSQL', async (t) => {
   const db = new PGlite();
@@ -178,11 +179,20 @@ test('Migración, permisos, equipos y registros en PostgreSQL', async (t) => {
     'Las fórmulas SQL y JavaScript coinciden para los seis pilares y datos heredados',
     async () => {
       for (const record of createDemo().pillar_records.slice(0, 90)) {
+        // This installer tests v2 daily scores; v3 movement is covered by weekly tests.
+        const data =
+          record.pillar === 'actividad'
+            ? { version: 2, values: { steps: record.data.values.steps, minutes: 30, intensity: 5 } }
+            : record.data;
         const result = await db.query('select private.pillar_score($1,$2) as score', [
           record.pillar,
-          JSON.stringify(record.data),
+          JSON.stringify(data),
         ]);
-        assert.equal(Number(result.rows[0].score), record.score, record.pillar);
+        assert.equal(
+          Number(result.rows[0].score),
+          scorePillar(record.pillar, data.values),
+          record.pillar,
+        );
       }
       assert.equal(
         Number(

@@ -34,9 +34,21 @@ export default function HabitRecords({ records }) {
                               <strong>{field.label}:</strong>{' '}
                               {values[field.key] === '' || values[field.key] == null
                                 ? 'Sin dato'
-                                : `${values[field.key]} ${field.unit || ''}`}
+                                : field.type === 'checkbox'
+                                  ? values[field.key]
+                                    ? 'Sí'
+                                    : 'No'
+                                  : `${values[field.key]} ${field.unit || ''}`}
                             </li>
                           ))}
+                          {pillar.key === 'actividad' &&
+                            values.minutes != null &&
+                            values.cardio_minutes == null && (
+                              <li>
+                                <strong>Ejercicio (registro anterior):</strong> {values.minutes}{' '}
+                                minutos
+                              </li>
+                            )}
                         </ul>
                       </td>
                       <td>{values.note || '—'}</td>

@@ -6,7 +6,7 @@ import {
   dateRange,
   formatDay,
   FREQUENCIES,
-  habitSummary,
+  daysBetween,
   TASK_TYPES,
 } from '../lib/domain';
 import { friendlyError } from '../lib/api';
@@ -26,6 +26,10 @@ import {
 } from '../components/ui';
 import TrendChart from '../components/TrendChart';
 import TaskEditor from '../components/TaskEditor';
+import TaskPdf from '../components/TaskPdf';
+import Energy from '../components/Energy';
+import { weeklyHistory } from '../lib/weekly';
+import { weekStart } from '../lib/wellbeing';
 import HabitRecords from '../components/HabitRecords';
 import MeasurementHistory from '../components/MeasurementHistory';
 import { useToday } from '../hooks/useToday';
@@ -105,7 +109,7 @@ function DoctorOverview({ api, profile, page, navigate }) {
       </div>
       <section className="panel">
         <SectionHeading title="Tus pacientes">
-          Indicador descriptivo de siete días; cada paciente se evalúa en su zona horaria.
+          Score de la semana actual, de lunes a domingo, en la zona horaria de cada paciente.
         </SectionHeading>
         <div className="table-toolbar">
           <div className="search-field">
@@ -147,7 +151,7 @@ function DoctorOverview({ api, profile, page, navigate }) {
                 <tr>
                   <th>Paciente</th>
                   <th>Último registro</th>
-                  <th>Hábitos · 7 días</th>
+                  <th>Hábitos · semana actual</th>
                   <th>Seguimiento</th>
                 </tr>
               </thead>
@@ -170,7 +174,9 @@ function DoctorOverview({ api, profile, page, navigate }) {
                     <td>
                       <strong>{p.summary.score ?? '—'}</strong>
                       <Meter value={p.summary.score} label={`Hábitos de ${p.profile.full_name}`} />
-                      <small>{p.summary.days}/7 días con datos</small>
+                      <small>
+                        {p.summary.days}/{p.summary.elapsedDays || 7} días transcurridos con datos
+                      </small>
                     </td>
                     <td>
                       <Badge tone={p.inactive ? 'orange' : 'green'}>
@@ -212,14 +218,15 @@ function DoctorOverview({ api, profile, page, navigate }) {
 }
 function PatientDetail({ api, profile, patient, notify, navigate }) {
   const today = useToday(patient.timezone);
-  const [period, setPeriod] = useState(14);
+  const [period, setPeriod] = useState(4);
   const [editor, setEditor] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const from = addDays(weekStart(today), -7 * (period - 1));
   const loader = useCallback(
-    () => api.patientData(patient.id, addDays(today, -(period - 1)), today),
-    [api, patient.id, today, period],
+    () => api.patientData(patient.id, from, today),
+    [api, patient.id, today, from],
   );
   const resource = useResource(loader);
   const doctorsLoader = useCallback(() => api.doctors(), [api]);
@@ -243,8 +250,8 @@ function PatientDetail({ api, profile, patient, notify, navigate }) {
   if (resource.error) return <ErrorNotice message={resource.error} retry={resource.reload} />;
   if (!resource.data) return null;
   const { records, tasks, completions } = resource.data;
-  const summary = habitSummary(records);
-  const dates = dateRange(today, period);
+  const summary = weeklyHistory(records, from, today);
+  const dates = dateRange(today, daysBetween(from, today) + 1);
   const plan = adherence(tasks, completions, dates);
   return (
     <div className="page-enter">
@@ -267,23 +274,23 @@ function PatientDetail({ api, profile, patient, notify, navigate }) {
       <div className="period-line">
         <span>Período de seguimiento</span>
         <div className="segmented">
-          {[7, 14, 30, 90].map((n) => (
+          {[1, 4, 8, 12].map((n) => (
             <button
               key={n}
               aria-pressed={period === n}
               className={period === n ? 'selected' : ''}
               onClick={() => setPeriod(n)}
             >
-              {n} días
+              {n} {n === 1 ? 'semana' : 'semanas'}
             </button>
           ))}
         </div>
       </div>
       <div className="stats-grid">
         <Stat
-          label="Indicador de hábitos"
+          label="Score semanal de hábitos"
           value={summary.score}
-          caption={`${summary.days}/${period} días registrados`}
+          caption={`${new Set(records.map((r) => r.date)).size}/${dates.length} días registrados`}
           icon="leaf"
         />
         <Stat
@@ -296,7 +303,7 @@ function PatientDetail({ api, profile, patient, notify, navigate }) {
         <Stat
           label="Cambio en el período"
           value={summary.trend == null ? '—' : `${summary.trend > 0 ? '+' : ''}${summary.trend}`}
-          caption="puntos entre pilares comunes del primer y último día"
+          caption="puntos entre pilares comunes de la primera y última semana con datos"
           icon="chart"
           tone="purple"
         />
@@ -309,12 +316,14 @@ function PatientDetail({ api, profile, patient, notify, navigate }) {
         </div>
       )}
       <section className="panel">
-        <SectionHeading title="Evolución de hábitos" />
+        <SectionHeading title="Evolución semanal de hábitos" />
         <TrendChart
-          days={dates.map(
-            (date) =>
-              summary.daily.find((d) => d.date === date) || { date, score: null, coverage: 0 },
-          )}
+          weekly
+          days={summary.weeks.map((week) => ({
+            date: week.start,
+            score: week.score,
+            coverage: week.coverage,
+          }))}
         />
       </section>
       <section className="panel">
@@ -358,6 +367,7 @@ function PatientDetail({ api, profile, patient, notify, navigate }) {
                         'profesional del equipo'}
                     </small>
                     <p>{task.description || task.instructions}</p>
+                    <TaskPdf api={api} task={task} />
                     <small>
                       {FREQUENCIES[task.frequency]}
                       {task.task_time ? ` · ${task.task_time.slice(0, 5)}` : ''} · desde{' '}
@@ -436,6 +446,7 @@ function PatientDetail({ api, profile, patient, notify, navigate }) {
           </div>
         )}
       </section>
+      <Energy api={api} patientId={patient.id} today={today} period={dates.length} />
       <HabitRecords records={records} />
       <MeasurementHistory api={api} patientId={patient.id} timezone={patient.timezone} />
       {editor && (

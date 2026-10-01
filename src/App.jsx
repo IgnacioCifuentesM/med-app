@@ -18,6 +18,8 @@ import Auth from './pages/Auth';
 const Patient = lazy(() => import('./pages/Patient'));
 const Doctor = lazy(() => import('./pages/Doctor'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Education = lazy(() => import('./pages/Education'));
+const Guides = lazy(() => import('./pages/Guides'));
 const getPath = () => (window.location.hash.startsWith('#/') ? window.location.hash.slice(2) : '');
 const demoRole = () => {
   try {
@@ -212,8 +214,8 @@ function Vitalia() {
   const isDoctor = profile.role === 'doctor';
   const effectivePath = path || (isDoctor ? 'overview' : 'home');
   const allowed = isDoctor
-    ? ['overview', 'patients', 'profile']
-    : ['home', 'pillars', 'progress', 'achievements', 'profile'];
+    ? ['overview', 'patients', 'education', 'profile']
+    : ['home', 'guides', 'pillars', 'progress', 'achievements', 'education', 'profile'];
   const page = allowed.includes(effectivePath.split('/')[0])
     ? effectivePath
     : isDoctor
@@ -236,6 +238,10 @@ function Vitalia() {
             {...{ api, profile, onUpdated, notify }}
             onboarding={!profile.onboarding_done}
           />
+        ) : page === 'guides' ? (
+          <Guides {...{ api, profile }} />
+        ) : page === 'education' ? (
+          <Education {...{ api, profile, today, notify }} />
         ) : isDoctor ? (
           <Doctor {...{ api, profile, today, page, navigate, notify }} />
         ) : (

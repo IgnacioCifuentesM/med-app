@@ -1,11 +1,17 @@
 import { formatDay } from '../lib/domain';
 
-export default function TrendChart({ days, label = 'Indicador de hábitos', compact = false }) {
+export default function TrendChart({
+  days,
+  label = 'Indicador de hábitos',
+  compact = false,
+  max = 100,
+  weekly = false,
+}) {
   const width = 620;
   const height = 160;
   const padding = 12;
   const position = (d, i) =>
-    `${padding + (i * (width - padding * 2)) / Math.max(1, days.length - 1)},${height - padding - ((d.score ?? 0) * (height - padding * 2)) / 100}`;
+    `${padding + (i * (width - padding * 2)) / Math.max(1, days.length - 1)},${height - padding - ((d.score ?? 0) * (height - padding * 2)) / max}`;
   const segments = [];
   let current = [];
   days.forEach((d, i) => {
@@ -18,15 +24,15 @@ export default function TrendChart({ days, label = 'Indicador de hábitos', comp
   return (
     <div className={`trend-chart ${compact ? 'compact' : ''}`}>
       <div className="chart-axis">
-        <span>100</span>
-        <span>50</span>
+        <span>{max}</span>
+        <span>{max / 2}</span>
         <span>0</span>
       </div>
       <div className="chart-drawing">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={`${label}. Los días sin datos se muestran como interrupciones. Los valores están disponibles en la tabla.`}
+          aria-label={`${label}. Los ${weekly ? 'períodos' : 'días'} sin datos se muestran como interrupciones. Los valores están disponibles en la tabla.`}
           preserveAspectRatio="none"
         >
           {[0, 50, 100].map((n) => (
@@ -80,7 +86,7 @@ export default function TrendChart({ days, label = 'Indicador de hábitos', comp
               <caption>{label}</caption>
               <thead>
                 <tr>
-                  <th>Fecha</th>
+                  <th>{weekly ? 'Semana del' : 'Fecha'}</th>
                   <th>Puntos</th>
                   <th>Pilares registrados</th>
                 </tr>

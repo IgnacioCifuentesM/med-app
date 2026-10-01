@@ -16,13 +16,16 @@ export default function Shell({
     ? [
         ['overview', 'Vista general', 'grid'],
         ['patients', 'Mis pacientes', 'users'],
+        ['education', 'Educación', 'grid'],
         ['profile', 'Mi perfil', 'user'],
       ]
     : [
         ['home', 'Mi día', 'home'],
+        ['guides', 'Mis guías', 'download'],
         ['pillars', 'Mis pilares', 'leaf'],
         ['progress', 'Mi progreso', 'chart'],
         ['achievements', 'Mis logros', 'award'],
+        ['education', 'Educación', 'grid'],
         ['profile', 'Mi perfil', 'user'],
       ];
   return (
@@ -52,7 +55,7 @@ export default function Shell({
               }
             >
               <Icon name={icon} />
-              {name}
+              <span className="nav-label">{name}</span>
               {(path === key || path.startsWith(`${key}/`)) && <span className="nav-dot" />}
             </a>
           ))}

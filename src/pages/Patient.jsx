@@ -1,15 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useResource } from '../hooks/useResource';
-import {
-  addDays,
-  adherence,
-  dateRange,
-  formatDay,
-  habitSummary,
-  PILLARS,
-  streak,
-  taskDue,
-} from '../lib/domain';
+import { addDays, adherence, dateRange, formatDay, PILLARS, streak, taskDue } from '../lib/domain';
 import {
   Badge,
   Button,
@@ -24,16 +15,26 @@ import {
 } from '../components/ui';
 import PillarEditor from '../components/PillarEditor';
 import TaskList from '../components/TaskList';
+import TaskPdf from '../components/TaskPdf';
+import Energy from '../components/Energy';
 import TrendChart from '../components/TrendChart';
+import { weeklyHistory, weeklySummary } from '../lib/weekly';
+import { weekStart } from '../lib/wellbeing';
 
 export default function Patient({ api, profile, today, page, navigate, notify }) {
-  const [period, setPeriod] = useState(14);
+  const [period, setPeriod] = useState(4);
   const [recordDate, setRecordDate] = useState(today);
   const [editor, setEditor] = useState(null);
-  const days = page === 'achievements' ? 365 : page === 'progress' ? period : 30;
+  const days = page === 'achievements' ? 365 : 30;
+  const from =
+    page === 'progress'
+      ? addDays(weekStart(today), -7 * (period - 1))
+      : page === 'achievements'
+        ? addDays(today, -364)
+        : weekStart(addDays(today, -(days - 1)));
   const loader = useCallback(
-    () => api.patientData(profile.id, addDays(today, -(days - 1)), today),
-    [api, profile.id, today, days],
+    () => api.patientData(profile.id, from, today),
+    [api, profile.id, today, from],
   );
   const resource = useResource(loader);
   if (resource.loading && !resource.data) return <Loading />;
@@ -43,20 +44,39 @@ export default function Patient({ api, profile, today, page, navigate, notify })
   const todayRecords = records.filter((r) => r.date === today);
   const todayTasks = tasks.filter((t) => taskDue(t, today));
   const todayAdherence = adherence(tasks, completions, [today]);
-  const recent = habitSummary(records.filter((r) => r.date >= addDays(today, -6)));
-  const summary = habitSummary(records);
-  const currentStreak = streak(records, today);
-  const dates = dateRange(today, page === 'progress' ? period : 7);
-  const chartDays = dates.map(
-    (date) => summary.daily.find((d) => d.date === date) || { date, score: null, coverage: 0 },
+  const recent = weeklySummary(records, today);
+  const recordedDays = new Map();
+  for (const record of records) {
+    if (!PILLARS.some((p) => p.key === record.pillar)) continue;
+    if (!recordedDays.has(record.date)) recordedDays.set(record.date, new Set());
+    recordedDays.get(record.date).add(record.pillar);
+  }
+  const summary = {
+    days: recordedDays.size,
+    daily: [...recordedDays.values()].map((pillars) => ({ coverage: pillars.size })),
+  };
+  const history = weeklyHistory(records, from, today);
+  const currentStreak = streak(
+    page === 'achievements' ? records : records.filter((r) => r.date >= addDays(today, -29)),
+    today,
   );
+  const dates =
+    page === 'progress'
+      ? dateRange(today, Math.round((Date.parse(today) - Date.parse(from)) / 86400000) + 1)
+      : dateRange(today, 7);
+  const chartDays = history.weeks.map((week) => ({
+    date: week.start,
+    score: week.score,
+    coverage: week.coverage,
+  }));
   const open = (key) => setEditor(key);
   const editDate = page === 'pillars' ? recordDate : today;
   const selectedRecords = records.filter((r) => r.date === recordDate);
+  const selectedWeek = weeklySummary(records, editDate, today);
   const pillarCards = (list, editable = true) => (
     <div className="pillar-grid">
       {PILLARS.map((p) => {
-        const result = habitSummary(list).pillars.find((s) => s.key === p.key);
+        const result = selectedWeek.pillars.find((s) => s.key === p.key);
         const saved = list.some((r) => r.pillar === p.key);
         return (
           <button
@@ -81,7 +101,7 @@ export default function Patient({ api, profile, today, page, navigate, notify })
             <p>{saved ? 'Registrado · editar' : '¿Cómo estuvo tu día?'}</p>
             <div className="pillar-value">
               <strong>{result.score ?? '—'}</strong>
-              <span>{result.score == null ? 'Por registrar' : '/ 100'}</span>
+              <span>{result.score == null ? 'Sin score semanal' : '/ 100 · semana'}</span>
             </div>
             <Meter value={result.score} color={p.color} label={p.name} />
           </button>
@@ -97,6 +117,11 @@ export default function Patient({ api, profile, today, page, navigate, notify })
             <PageHeading
               eyebrow="CADA DÍA ES UN NUEVO COMIENZO"
               title={`Hola, ${profile.full_name.split(' ')[0]}.`}
+              action={
+                <Button variant="secondary" icon="download" onClick={() => navigate('guides')}>
+                  Mis guías ({tasks.filter((task) => task.attachment_path).length})
+                </Button>
+              }
             >
               Hagamos espacio para lo que te hace bien.
             </PageHeading>
@@ -155,6 +180,7 @@ export default function Patient({ api, profile, today, page, navigate, notify })
                 tone="orange"
               />
             </div>
+            <Energy api={api} patientId={profile.id} today={today} editable />
             <div className="content-columns">
               <section className="panel">
                 <SectionHeading
@@ -172,15 +198,15 @@ export default function Patient({ api, profile, today, page, navigate, notify })
                 />
               </section>
               <aside className="panel weekly-panel">
-                <SectionHeading title="Una mirada a tu semana" />
+                <SectionHeading title="Score semanal de pilares" />
                 <div className="weekly-score">
                   <strong>{recent.score ?? '—'}</strong>
-                  <span>indicador de hábitos / 100</span>
+                  <span>semana del {formatDay(recent.start)} / 100</span>
                 </div>
-                <TrendChart days={chartDays} compact />
+                <TrendChart days={chartDays} compact weekly />
                 <p className="microcopy">
-                  {recent.days} de 7 días con registros. Los espacios vacíos son días sin
-                  información.
+                  {recent.days} de {recent.elapsedDays} días transcurridos con registros ·{' '}
+                  {recent.coverage}/6 pilares con score. Semana en curso.
                 </p>
                 <Button
                   variant="secondary"
@@ -192,6 +218,22 @@ export default function Patient({ api, profile, today, page, navigate, notify })
                 </Button>
               </aside>
             </div>
+            {tasks.some((task) => task.attachment_path) && (
+              <section className="patient-guides">
+                <SectionHeading title="Mis guías" />
+                {tasks
+                  .filter((task) => task.attachment_path)
+                  .map((task) => (
+                    <article className="guide-row" key={task.id}>
+                      <div>
+                        <strong>{task.title}</strong>
+                        <p>{task.attachment_name}</p>
+                      </div>
+                      <TaskPdf api={api} task={task} />
+                    </article>
+                  ))}
+              </section>
+            )}
             <SectionHeading
               title="Tus seis pilares"
               action={
@@ -235,9 +277,13 @@ export default function Patient({ api, profile, today, page, navigate, notify })
               </div>
               <Meter value={(selectedRecords.length / 6) * 100} label="Pilares registrados" />
               <span className="score-chip">
-                {habitSummary(selectedRecords).score ?? '—'} <small>/ 100</small>
+                {selectedWeek.score ?? '—'} <small>/ 100 · semana</small>
               </span>
             </div>
+            <p className="microcopy">
+              Scores de la semana del {formatDay(selectedWeek.start)} al{' '}
+              {formatDay(selectedWeek.end)}. Registros del {formatDay(recordDate)}.
+            </p>
             {pillarCards(selectedRecords)}
             <div className="info-card">
               <Icon name="info" />
@@ -260,14 +306,14 @@ export default function Patient({ api, profile, today, page, navigate, notify })
               title="Tu progreso, a tu ritmo."
               action={
                 <div className="segmented" aria-label="Período">
-                  {[7, 14, 30, 90].map((n) => (
+                  {[1, 4, 8, 12].map((n) => (
                     <button
                       key={n}
                       aria-pressed={period === n}
                       className={period === n ? 'selected' : ''}
                       onClick={() => setPeriod(n)}
                     >
-                      {n} días
+                      {n} {n === 1 ? 'semana' : 'semanas'}
                     </button>
                   ))}
                 </div>
@@ -278,15 +324,15 @@ export default function Patient({ api, profile, today, page, navigate, notify })
             </PageHeading>
             <div className="stats-grid">
               <Stat
-                label="Indicador de hábitos"
-                value={summary.score}
-                caption="promedio de los días registrados"
+                label="Score semanal de hábitos"
+                value={history.score}
+                caption="promedio de las semanas con datos"
                 icon="leaf"
               />
               <Stat
                 label="Cobertura del período"
-                value={`${summary.days}/${period}`}
-                caption={`${summary.coverage}/${period * 6} pilares registrados`}
+                value={`${new Set(records.map((r) => r.date)).size}/${dates.length}`}
+                caption="días registrados dentro de las semanas seleccionadas"
                 icon="calendar"
                 tone="blue"
               />
@@ -304,10 +350,10 @@ export default function Patient({ api, profile, today, page, navigate, notify })
             </div>
             <section className="panel">
               <SectionHeading title="Tu recorrido" action={<Badge>Hábitos</Badge>}>
-                Puntajes de los pilares disponibles, agrupados por día.
+                Puntajes por semana de lunes a domingo. La semana actual es parcial.
               </SectionHeading>
-              {summary.days ? (
-                <TrendChart days={chartDays} />
+              {history.weeks.some((week) => week.score !== null) ? (
+                <TrendChart days={chartDays} weekly />
               ) : (
                 <Empty
                   title="Tu recorrido empieza con un registro"
@@ -322,7 +368,7 @@ export default function Patient({ api, profile, today, page, navigate, notify })
             <div className="content-columns equal">
               <section className="panel">
                 <SectionHeading title="Pilar por pilar" />
-                {summary.pillars.map((p) => (
+                {history.pillars.map((p) => (
                   <div className="pillar-row" key={p.key}>
                     <span className={`icon-tile tone-${p.color}`}>
                       <Icon name={p.icon} />
@@ -381,6 +427,9 @@ export default function Patient({ api, profile, today, page, navigate, notify })
             </div>
             <ScoreExplanation />
           </>
+        )}
+        {page === 'progress' && (
+          <Energy api={api} patientId={profile.id} today={today} period={dates.length} />
         )}
         {page === 'achievements' && (
           <>
@@ -493,22 +542,27 @@ function ScoreExplanation() {
     <details className="score-explanation">
       <summary>Cómo se calcula el indicador de hábitos</summary>
       <p>
-        Versión 2 · Orientativo, no clínico. Se calculan puntajes entre 0 y 100 por pilar; el día
-        promedia únicamente los pilares registrados y el período promedia sus días con datos.
-        Compara siempre la cobertura: registrar menos pilares puede cambiar el promedio. El cambio
-        entre fechas se calcula solo con pilares presentes en ambos extremos.
+        Scores semanales de lunes a domingo, entre 0 y 100. El score de la semana promedia los
+        pilares disponibles; el período promedia las semanas con datos. Los días sin registro no
+        equivalen a cero. Revisa siempre la cobertura y si la semana sigue en curso.
       </p>
       <ul>
         <li>Nutrición: porciones respecto a una referencia de 5 y calidad declarada.</li>
-        <li>Movimiento: pasos respecto a 8.000 y minutos respecto a 30, con igual peso.</li>
+        <li>Movimiento: promedio de tres componentes con igual peso: pasos, cardio y fuerza.</li>
+        <li>
+          Pasos: 7.500 en un día equivale a 100; se promedian los días registrados y cada día se
+          limita a 100.
+        </li>
+        <li>Cardio: 150 minutos acumulados en la semana equivale a 100.</li>
+        <li>Fuerza: tres días con trabajo de fuerza en la semana equivale a 100.</li>
         <li>Sueño y conexión: la calidad o conexión declarada de 1 a 10.</li>
         <li>Calma: nivel de estrés de 1 a 10, invertido.</li>
         <li>Consumo: cigarrillos y alcohol con escalas invertidas limitadas a 0–100.</li>
       </ul>
       <p>
-        Estas referencias son parámetros del producto, no metas personalizadas ni recomendaciones
-        médicas. Los registros antiguos se recalculan para mostrar una misma fórmula, sin
-        sobrescribir sus datos. Las mediciones inválidas se excluyen.
+        Los otros cinco pilares promedian sus registros diarios dentro de cada semana. El ejercicio
+        antiguo no se convierte automáticamente en cardio o fuerza; sus pasos se conservan. Estos
+        indicadores describen el seguimiento del plan y no son una evaluación clínica.
       </p>
     </details>
   );
