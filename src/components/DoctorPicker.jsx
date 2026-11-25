@@ -19,6 +19,9 @@ export default function DoctorPicker({ api, doctors, selected, onChange, disable
     const outside = (event) => {
       if (!root.current?.contains(event.target)) setOpen(false);
     };
+    const tabAway = (event) => {
+      if (event.key === 'Tab') outside(event);
+    };
     const escape = (event) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -27,9 +30,11 @@ export default function DoctorPicker({ api, doctors, selected, onChange, disable
     };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
+    document.addEventListener('keyup', tabAway);
     return () => {
       document.removeEventListener('pointerdown', outside);
       document.removeEventListener('keydown', escape);
+      document.removeEventListener('keyup', tabAway);
     };
   }, [open, close]);
   function toggle(doctor) {
@@ -41,14 +46,7 @@ export default function DoctorPicker({ api, doctors, selected, onChange, disable
     );
   }
   return (
-    <div
-      className="doctor-picker"
-      ref={root}
-      onBlur={(event) => {
-        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
-          setOpen(false);
-      }}
-    >
+    <div className="doctor-picker" ref={root}>
       <span className="doctor-picker-label" id={labelId}>
         Profesionales con acceso a tus datos
       </span>
